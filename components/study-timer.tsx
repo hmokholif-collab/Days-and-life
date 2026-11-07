@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { BellRing, Pause, Play, RotateCcw, Timer } from 'lucide-react';
+import { addSession } from '@/lib/sessions';
 
 type Mode = 'focus' | 'short' | 'long' | 'custom';
 const MODES: { id: Mode; label: string; minutes: number }[] = [
@@ -70,6 +71,10 @@ export function StudyTimer() {
       localStorage.setItem(LOG_KEY, JSON.stringify(log));
     } catch { /* التسجيل محلي فقط */ }
     setToday(loadTodayMinutes());
+    // جلسة التركيز (مش الاستراحة) بتتسجل كمان في سجل المذاكرة عشان تظهر في الرئيسية والسجل.
+    if (mode === 'focus' || mode === 'custom') {
+      addSession({ subject: subject.trim() || 'مذاكرة', hours: Math.round((total / 3600) * 100) / 100, type: 'مذاكرة', notes: `مؤقت ${minutes} دقيقة` });
+    }
     beep();
     if (mode === 'focus') confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 }, colors: ['#ff6b5f', '#70d6b0', '#19213a'] });
     if (Notification?.permission === 'granted') new Notification('Days and Life', { body: mode === 'focus' ? `خلصت جلسة تركيز ${minutes} دقيقة 👏` : 'خلصت الاستراحة، يلا نرجع للتركيز' });
