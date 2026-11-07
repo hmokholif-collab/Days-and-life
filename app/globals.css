@@ -15,53 +15,53 @@ body { margin: 0; background: #f7f8fc; color: #19213a; font-family: Arial, sans-
 /* Each theme re-colours the accent (coral), the ink button and the page background. */
 
 /* محيط — أزرق مخضرّ */
-.theme-ocean { color-scheme: light; }
-.theme-ocean body { background: #eef7f9; color: #0f2a33; }
-.theme-ocean .bg-coral { background-color: #0e7490; }
-.theme-ocean .text-coral { color: #0e7490; }
-.theme-ocean .bg-ink { background-color: #155e75; }
-.theme-ocean .btn-primary { background-color: #0e7490; color: #fff; }
-.theme-ocean .bg-mint\/80 { background-color: rgb(45 212 191 / .8); }
-.theme-ocean .card { border-color: #cfe8ec; }
-.theme-ocean .focus\:border-coral:focus { border-color: #0e7490; }
-.theme-ocean .ring-coral\/40 { --tw-ring-color: rgb(14 116 144 / .4); }
-.theme-ocean .border-coral { border-color: #0e7490; }
+.ocean { color-scheme: light; }
+.ocean body { background: #eef7f9; color: #0f2a33; }
+.ocean .bg-coral { background-color: #0e7490; }
+.ocean .text-coral { color: #0e7490; }
+.ocean .bg-ink { background-color: #155e75; }
+.ocean .btn-primary { background-color: #0e7490; color: #fff; }
+.ocean .bg-mint\/80 { background-color: rgb(45 212 191 / .8); }
+.ocean .card { border-color: #cfe8ec; }
+.ocean .focus\:border-coral:focus { border-color: #0e7490; }
+.ocean .ring-coral\/40 { --tw-ring-color: rgb(14 116 144 / .4); }
+.ocean .border-coral { border-color: #0e7490; }
 
 /* غابة — أخضر */
-.theme-forest { color-scheme: light; }
-.theme-forest body { background: #eef7ee; color: #12291a; }
-.theme-forest .bg-coral { background-color: #15803d; }
-.theme-forest .text-coral { color: #15803d; }
-.theme-forest .bg-ink { background-color: #166534; }
-.theme-forest .btn-primary { background-color: #15803d; color: #fff; }
-.theme-forest .bg-mint\/80 { background-color: rgb(34 197 94 / .8); }
-.theme-forest .card { border-color: #cde8d2; }
-.theme-forest .focus\:border-coral:focus { border-color: #15803d; }
-.theme-forest .ring-coral\/40 { --tw-ring-color: rgb(21 128 61 / .4); }
-.theme-forest .border-coral { border-color: #15803d; }
+.forest { color-scheme: light; }
+.forest body { background: #eef7ee; color: #12291a; }
+.forest .bg-coral { background-color: #15803d; }
+.forest .text-coral { color: #15803d; }
+.forest .bg-ink { background-color: #166534; }
+.forest .btn-primary { background-color: #15803d; color: #fff; }
+.forest .bg-mint\/80 { background-color: rgb(34 197 94 / .8); }
+.forest .card { border-color: #cde8d2; }
+.forest .focus\:border-coral:focus { border-color: #15803d; }
+.forest .ring-coral\/40 { --tw-ring-color: rgb(21 128 61 / .4); }
+.forest .border-coral { border-color: #15803d; }
 
 /* غروب — برتقالي دافئ */
-.theme-sunset { color-scheme: light; }
-.theme-sunset body { background: #fdf3ec; color: #33190a; }
-.theme-sunset .bg-coral { background-color: #ea580c; }
-.theme-sunset .text-coral { color: #ea580c; }
-.theme-sunset .bg-ink { background-color: #9a3412; }
-.theme-sunset .btn-primary { background-color: #ea580c; color: #fff; }
-.theme-sunset .bg-mint\/80 { background-color: rgb(251 146 60 / .8); }
-.theme-sunset .card { border-color: #f2d8c2; }
-.theme-sunset .focus\:border-coral:focus { border-color: #ea580c; }
-.theme-sunset .ring-coral\/40 { --tw-ring-color: rgb(234 88 12 / .4); }
-.theme-sunset .border-coral { border-color: #ea580c; }
+.sunset { color-scheme: light; }
+.sunset body { background: #fdf3ec; color: #33190a; }
+.sunset .bg-coral { background-color: #ea580c; }
+.sunset .text-coral { color: #ea580c; }
+.sunset .bg-ink { background-color: #9a3412; }
+.sunset .btn-primary { background-color: #ea580c; color: #fff; }
+.sunset .bg-mint\/80 { background-color: rgb(251 146 60 / .8); }
+.sunset .card { border-color: #f2d8c2; }
+.sunset .focus\:border-coral:focus { border-color: #ea580c; }
+.sunset .ring-coral\/40 { --tw-ring-color: rgb(234 88 12 / .4); }
+.sunset .border-coral { border-color: #ea580c; }
 
 /* بنفسجي */
-.theme-violet { color-scheme: light; }
-.theme-violet body { background: #f5f1fd; color: #221239; }
-.theme-violet .bg-coral { background-color: #7c3aed; }
-.theme-violet .text-coral { color: #7c3aed; }
-.theme-violet .bg-ink { background-color: #5b21b6; }
-.theme-violet .btn-primary { background-color: #7c3aed; color: #fff; }
-.theme-violet .bg-mint\/80 { background-color: rgb(167 139 250 / .8); }
-.theme-violet .card { border-color: #ddd0f7; }
-.theme-violet .focus\:border-coral:focus { border-color: #7c3aed; }
-.theme-violet .ring-coral\/40 { --tw-ring-color: rgb(124 58 237 / .4); }
-.theme-violet .border-coral { border-color: #7c3aed; }
+.violet { color-scheme: light; }
+.violet body { background: #f5f1fd; color: #221239; }
+.violet .bg-coral { background-color: #7c3aed; }
+.violet .text-coral { color: #7c3aed; }
+.violet .bg-ink { background-color: #5b21b6; }
+.violet .btn-primary { background-color: #7c3aed; color: #fff; }
+.violet .bg-mint\/80 { background-color: rgb(167 139 250 / .8); }
+.violet .card { border-color: #ddd0f7; }
+.violet .focus\:border-coral:focus { border-color: #7c3aed; }
+.violet .ring-coral\/40 { --tw-ring-color: rgb(124 58 237 / .4); }
+.violet .border-coral { border-color: #7c3aed; }
