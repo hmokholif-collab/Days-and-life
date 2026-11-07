@@ -4,12 +4,12 @@ import { Check, Palette } from 'lucide-react';
 import { useTheme } from 'next-themes';
 
 export const THEMES = [
-  { id: 'light', label: 'فاتح', swatch: '#ff6b5f', swatch2: '#f7f8fc' },
-  { id: 'dark', label: 'داكن', swatch: '#101522', swatch2: '#ff6b5f' },
-  { id: 'ocean', label: 'محيط', swatch: '#0e7490', swatch2: '#e0f2fe' },
-  { id: 'forest', label: 'غابة', swatch: '#15803d', swatch2: '#dcfce7' },
-  { id: 'sunset', label: 'غروب', swatch: '#ea580c', swatch2: '#ffedd5' },
-  { id: 'violet', label: 'بنفسجي', swatch: '#7c3aed', swatch2: '#ede9fe' },
+  { id: 'light', label: 'فاتح', swatch: '#ff6b5f', swatch2: '#f7f8fc', bar: '#f7f8fc' },
+  { id: 'dark', label: 'داكن', swatch: '#101522', swatch2: '#ff6b5f', bar: '#101522' },
+  { id: 'ocean', label: 'محيط', swatch: '#0e7490', swatch2: '#e0f2fe', bar: '#eef7f9' },
+  { id: 'forest', label: 'غابة', swatch: '#15803d', swatch2: '#dcfce7', bar: '#eef7ee' },
+  { id: 'sunset', label: 'غروب', swatch: '#ea580c', swatch2: '#ffedd5', bar: '#fdf3ec' },
+  { id: 'violet', label: 'بنفسجي', swatch: '#7c3aed', swatch2: '#ede9fe', bar: '#f5f1fd' },
 ] as const;
 
 export type ThemeId = (typeof THEMES)[number]['id'];
