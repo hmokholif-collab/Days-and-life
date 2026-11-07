@@ -1,9 +1,9 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Flame, Play, Timer } from 'lucide-react';
+import { Check, Flame, Play, Timer } from 'lucide-react';
 import { SESSIONS_EVENT, currentStreak, formatHours, todayHours, todaySessions, type StudySession } from '@/lib/sessions';
-import { PLANS_EVENT, hoursForDay, loadPlans, type PlanItem } from '@/lib/plans';
+import { PLANS_EVENT, hoursForDay, isChecked, loadPlans, toggleCheck, type PlanItem } from '@/lib/plans';
 import { typeLabel, useLanguage } from '@/lib/i18n';
 
 export interface TopPlanItem {
@@ -11,6 +11,7 @@ export interface TopPlanItem {
   todayH: number;
   remaining: number;
   pct: number;
+  checked: boolean;
 }
 
 function useTodayData() {
@@ -35,16 +36,17 @@ function useTodayData() {
     .map((plan) => {
       const todayH = Math.round(hoursForDay(plan.subject, todayIso) * 100) / 100;
       const target = plan.dailyTarget as number;
-      return { plan, todayH, remaining: Math.max(0, Math.round((target - todayH) * 100) / 100), pct: Math.min(100, Math.round((todayH / target) * 100)) };
+      const checked = isChecked(plan.id, todayIso);
+      return { plan, todayH, remaining: Math.max(0, Math.round((target - todayH) * 100) / 100), pct: checked ? 100 : Math.min(100, Math.round((todayH / target) * 100)), checked };
     })
     .sort((a, b) => b.remaining - a.remaining)
     .slice(0, 4);
-  return { sessions, hours, streak, topPlans };
+  return { sessions, hours, streak, topPlans, todayIso };
 }
 
 export function TodayWidget({ detailed = false }: { detailed?: boolean }) {
   const { t, locale } = useLanguage();
-  const { sessions, hours, streak, topPlans } = useTodayData();
+  const { sessions, hours, streak, topPlans, todayIso } = useTodayData();
   return (
     <div className="relative overflow-hidden rounded-[2rem] border border-slate-200/70 bg-gradient-to-br from-white via-[#fff8f6] to-[#eefdf6] p-5 shadow-[0_16px_50px_rgb(0,0,0,0.06)] dark:border-slate-800 dark:bg-slate-900 dark:bg-none sm:p-6">
       <div className="flex items-start justify-between gap-2">
@@ -66,11 +68,22 @@ export function TodayWidget({ detailed = false }: { detailed?: boolean }) {
         {topPlans.length === 0 ? (
           <p className="text-sm text-slate-500">{t('today.noPlans')}</p>
         ) : (
-          topPlans.map(({ plan, remaining, pct }) => (
+          topPlans.map(({ plan, remaining, pct, checked }) => (
             <div key={plan.id}>
               <div className="mb-1 flex items-center justify-between gap-2 text-sm">
-                <span className="font-bold">{plan.subject}</span>
-                <span className="shrink-0 text-slate-500">{remaining > 0 ? `${t('plan.remaining')} ${formatHours(remaining)} ${t('common.hoursShort')}` : t('plan.done')}</span>
+                <span className="flex min-w-0 items-center gap-2 font-bold">
+                  <button
+                    type="button"
+                    onClick={() => toggleCheck(plan.id, todayIso)}
+                    aria-label={checked ? t('plan.unmarkDone') : t('plan.markDone')}
+                    aria-pressed={checked}
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition ${checked ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-300 text-transparent hover:border-emerald-400 dark:border-slate-600'}`}
+                  >
+                    <Check size={13} strokeWidth={3.5} />
+                  </button>
+                  <span className="truncate">{plan.subject}</span>
+                </span>
+                <span className="shrink-0 text-slate-500">{checked ? t('plan.done') : remaining > 0 ? `${t('plan.remaining')} ${formatHours(remaining)} ${t('common.hoursShort')}` : t('plan.done')}</span>
               </div>
               <div className="h-2.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                 <div className="h-full rounded-full bg-gradient-to-r from-coral to-amber-400 transition-all" style={{ width: `${pct}%` }} />

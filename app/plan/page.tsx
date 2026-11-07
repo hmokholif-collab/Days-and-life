@@ -1,8 +1,8 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Trash2 } from 'lucide-react';
-import { PLANS_EVENT, addPlan, deletePlan, hoursForDay, hoursForWeek, loadPlans, updatePlan, weekDays, type PlanItem } from '@/lib/plans';
+import { Check, Plus, Trash2 } from 'lucide-react';
+import { PLANS_EVENT, addPlan, dayPct, deletePlan, hoursForDay, hoursForWeek, isChecked, loadPlans, toggleCheck, updatePlan, weekDays, type PlanItem } from '@/lib/plans';
 import { SESSIONS_EVENT, formatDateAr, formatHours } from '@/lib/sessions';
 import { useLanguage } from '@/lib/i18n';
 
@@ -232,9 +232,28 @@ export default function Plan() {
                     </td>
                     {week.map((d) => {
                       const h = hoursForDay(plan.subject, d.iso);
+                      const checked = isChecked(plan.id, d.iso);
+                      const pct = dayPct(plan, d.iso);
+                      const isToday = d.iso === todayIso;
                       return (
-                        <td key={d.iso} className={`p-2 ${d.iso === todayIso ? 'bg-emerald-50 font-bold dark:bg-emerald-950/40' : ''}`}>
-                          {h > 0 ? formatHours(h) : <span className="text-slate-300 dark:text-slate-600">—</span>}
+                        <td key={d.iso} className={`p-1 ${isToday ? 'bg-emerald-50 dark:bg-emerald-950/40' : ''} ${checked ? 'bg-emerald-100/70 dark:bg-emerald-900/40' : ''}`}>
+                          <button
+                            type="button"
+                            onClick={() => toggleCheck(plan.id, d.iso)}
+                            aria-label={checked ? t('plan.unmarkDone') : t('plan.markDone')}
+                            aria-pressed={checked}
+                            className="flex w-full flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800"
+                          >
+                            <span className="font-bold">{h > 0 ? formatHours(h) : <span className="text-slate-300 dark:text-slate-600">—</span>}</span>
+                            <span className="flex items-center gap-1">
+                              <span className={`flex h-4 w-4 items-center justify-center rounded-full border ${checked ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-300 text-transparent dark:border-slate-600'}`}>
+                                <Check size={11} strokeWidth={3.5} />
+                              </span>
+                              {pct !== null && (h > 0 || checked) && (
+                                <span className={`text-[11px] font-bold ${checked ? 'text-emerald-600' : 'text-slate-400'}`}>{pct}%</span>
+                              )}
+                            </span>
+                          </button>
                         </td>
                       );
                     })}
@@ -259,9 +278,10 @@ export default function Plan() {
             const todayH = Math.round(hoursForDay(plan.subject, todayIso) * 100) / 100;
             const weekH = Math.round(hoursForWeek(plan.subject) * 100) / 100;
             const remaining = plan.weeklyTarget ? Math.max(0, plan.weeklyTarget - weekH) : null;
-            const todayDone = plan.dailyTarget !== undefined && todayH >= plan.dailyTarget;
+            const todayPct = dayPct(plan, todayIso);
+            const todayDone = todayPct === 100;
             const weekDone = plan.weeklyTarget !== undefined && weekH >= plan.weeklyTarget;
-            const daysStudied = week.filter((d) => hoursForDay(plan.subject, d.iso) > 0).length;
+            const daysStudied = week.filter((d) => hoursForDay(plan.subject, d.iso) > 0 || isChecked(plan.id, d.iso)).length;
             const pct = plan.weeklyTarget ? Math.round((weekH / plan.weeklyTarget) * 100) : null;
             return (
               <motion.section
@@ -299,10 +319,10 @@ export default function Plan() {
                     <div>
                       <div className="mb-1 flex justify-between text-sm">
                         <span className="text-slate-500">{t('plan.todayProgress')}</span>
-                        <b>{formatHours(todayH)} / {formatHours(plan.dailyTarget)} {t('common.hoursShort')}</b>
+                        <b>{todayPct === 100 ? t('plan.done') : `${formatHours(todayH)} / ${formatHours(plan.dailyTarget)} ${t('common.hoursShort')}`}{todayPct !== null && todayPct < 100 ? ` · ${todayPct}%` : ''}</b>
                       </div>
                       <div className="h-3 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                        <div className="h-full rounded-full bg-gradient-to-r from-mint to-emerald-400 transition-all" style={{ width: `${Math.min(100, (todayH / plan.dailyTarget) * 100)}%` }} />
+                        <div className="h-full rounded-full bg-gradient-to-r from-mint to-emerald-400 transition-all" style={{ width: `${todayPct ?? 0}%` }} />
                       </div>
                     </div>
                   )}

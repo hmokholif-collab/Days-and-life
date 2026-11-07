@@ -87,3 +87,45 @@ export function hoursForWeek(subject: string): number {
     .filter((s) => isos.has(s.date) && s.subject.trim() === target)
     .reduce((sum, s) => sum + s.hours, 0);
 }
+
+// علامات إنجاز يدوية لكل مادة ويوم — تدوس على علامة الصح فتتحدد كمكتملة (100%).
+// مثال: هدف اليوم ساعتين، ذاكرت ساعة = 50%، ساعة ونص = 75%، والصح = 100%.
+const CHECKS_KEY = 'days-life-plan-checks';
+export type PlanChecks = Record<string, Record<string, boolean>>;
+
+export function loadChecks(): PlanChecks {
+  try {
+    const raw = localStorage.getItem(CHECKS_KEY);
+    return raw ? (JSON.parse(raw) as PlanChecks) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveChecks(checks: PlanChecks) {
+  try {
+    localStorage.setItem(CHECKS_KEY, JSON.stringify(checks));
+    window.dispatchEvent(new Event(PLANS_EVENT));
+  } catch { /* التخزين المحلي غير متاح */ }
+}
+
+export function isChecked(planId: string, iso: string): boolean {
+  return loadChecks()[planId]?.[iso] === true;
+}
+
+export function toggleCheck(planId: string, iso: string): void {
+  const checks = loadChecks();
+  const days = { ...(checks[planId] ?? {}) };
+  if (days[iso]) delete days[iso];
+  else days[iso] = true;
+  if (Object.keys(days).length === 0) delete checks[planId];
+  else checks[planId] = days;
+  saveChecks(checks);
+}
+
+// نسبة إنجاز يوم معين من الهدف اليومي: علامة الصح = 100%، غير كده الساعات ÷ الهدف.
+export function dayPct(plan: PlanItem, iso: string): number | null {
+  if (!plan.dailyTarget) return null;
+  if (isChecked(plan.id, iso)) return 100;
+  return Math.min(100, Math.round((hoursForDay(plan.subject, iso) / plan.dailyTarget) * 100));
+}
