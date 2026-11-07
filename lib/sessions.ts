@@ -110,3 +110,72 @@ export function formatDateAr(iso: string): string {
 export function formatHours(h: number): string {
   return Number.isInteger(h) ? String(h) : h.toFixed(2).replace(/\.?0+$/, '');
 }
+
+const DAY_NAMES_AR = ['أحد', 'اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
+
+// ساعات آخر 7 أيام (من 6 أيام فاتوا لحد النهاردة)، بالترتيب، لاستخدامها في الرسوم البيانية.
+export function weekHours(): { day: string; hours: number }[] {
+  const totals = new Map<string, number>();
+  for (const s of loadSessions()) totals.set(s.date, (totals.get(s.date) ?? 0) + s.hours);
+  const out: { day: string; hours: number }[] = [];
+  for (let offset = 6; offset >= 0; offset--) {
+    const d = new Date();
+    d.setDate(d.getDate() - offset);
+    const iso = d.toISOString().slice(0, 10);
+    out.push({ day: DAY_NAMES_AR[d.getDay()], hours: Math.round((totals.get(iso) ?? 0) * 100) / 100 });
+  }
+  return out;
+}
+
+export function weekTotalHours(): number {
+  return weekHours().reduce((sum, d) => sum + d.hours, 0);
+}
+
+// إجمالي ساعات الشهر الحالي.
+export function monthTotalHours(): number {
+  const prefix = new Date().toISOString().slice(0, 7);
+  return loadSessions().filter((s) => s.date.startsWith(prefix)).reduce((sum, s) => sum + s.hours, 0);
+}
+
+// متوسط ساعات اليوم في الشهر الحالي (من أول الشهر لحد النهاردة).
+export function dailyAverageThisMonth(): number {
+  const dayOfMonth = new Date().getDate();
+  return Math.round((monthTotalHours() / dayOfMonth) * 100) / 100;
+}
+
+// أطول سلسلة أيام متتالية فيها جلسات، من كل التاريخ.
+export function longestStreak(): number {
+  const dates = new Set(loadSessions().map((s) => s.date));
+  let best = 0;
+  for (const iso of dates) {
+    const d = new Date(`${iso}T12:00:00`);
+    const prev = new Date(d);
+    prev.setDate(prev.getDate() - 1);
+    if (dates.has(prev.toISOString().slice(0, 10))) continue; // مش بداية سلسلة
+    let len = 0;
+    const cursor = new Date(d);
+    while (dates.has(cursor.toISOString().slice(0, 10))) { len++; cursor.setDate(cursor.getDate() + 1); }
+    if (len > best) best = len;
+  }
+  return best;
+}
+
+// إجمالي الساعات لكل مادة، مرتبة من الأعلى، مع نسبة كل مادة من الإجمالي.
+export function subjectTotals(): { subject: string; hours: number; pct: number }[] {
+  const totals = new Map<string, number>();
+  let all = 0;
+  for (const s of loadSessions()) { totals.set(s.subject, (totals.get(s.subject) ?? 0) + s.hours); all += s.hours; }
+  return [...totals.entries()]
+    .map(([subject, hours]) => ({ subject, hours: Math.round(hours * 100) / 100, pct: all > 0 ? Math.round((hours / all) * 100) : 0 }))
+    .sort((a, b) => b.hours - a.hours);
+}
+
+// ملاحظة ذكية من البيانات الحقيقية: أكتر مادة وأقل مادة.
+export function smartNote(): string {
+  const totals = subjectTotals();
+  if (totals.length === 0) return 'لسه مفيش جلسات مسجلة — ابدأ أول جلسة من الرئيسية وهنا هتظهر ملاحظة عن تقدمك.';
+  const best = totals[0];
+  if (totals.length === 1) return `أداؤك في ${best.subject} ممتاز (${formatHours(best.hours)} ساعة). جرّب تضيف مادة تانية عشان توازن جدولك.`;
+  const least = totals[totals.length - 1];
+  return `أداؤك في ${best.subject} ممتاز (${formatHours(best.hours)} ساعة). جرّب تخصيص 30 دقيقة إضافية لـ ${least.subject} (${formatHours(least.hours)} ساعة بس) في بداية الأسبوع القادم لتحافظ على توازن المواد.`;
+}
