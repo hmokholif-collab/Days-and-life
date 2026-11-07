@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { BellRing, Pause, Play, RotateCcw, Timer } from 'lucide-react';
-import { addSession } from '@/lib/sessions';
+import { addSession, type SessionType } from '@/lib/sessions';
 
 type Mode = 'focus' | 'short' | 'long' | 'custom';
 const MODES: { id: Mode; label: string; minutes: number }[] = [
@@ -45,8 +45,30 @@ export function StudyTimer() {
   const [running, setRunning] = useState(false);
   const [finished, setFinished] = useState(false);
   const [subject, setSubject] = useState('');
+  const [sessionType, setSessionType] = useState<SessionType>('مذاكرة');
   const [today, setToday] = useState({ sessions: 0, minutes: 0 });
   const deadlineRef = useRef<number | null>(null);
+
+  // بدء جلسة من نموذج «جلسة جديدة»: ييجي بالمادة والمدة والتصنيف، والمؤقت يشتغل على طول.
+  useEffect(() => {
+    const onStart = (e: Event) => {
+      const d = (e as CustomEvent<{ subject?: string; minutes?: number; type?: SessionType }>).detail ?? {};
+      const minutes = Math.max(1, Math.min(180, Math.round(d.minutes ?? 25)));
+      const subj = d.subject?.trim() ?? '';
+      setSubject(subj);
+      if (d.type) setSessionType(d.type);
+      setMode('custom');
+      setCustomMinutes(minutes);
+      setTotal(minutes * 60); setRemaining(minutes * 60);
+      setFinished(false);
+      const deadline = Date.now() + minutes * 60 * 1000;
+      deadlineRef.current = deadline; setRunning(true);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ deadline, total: minutes * 60, mode: 'custom', subject: subj }));
+      document.getElementById('study-timer')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+    window.addEventListener('days-life:start-session', onStart);
+    return () => window.removeEventListener('days-life:start-session', onStart);
+  }, []);
 
   useEffect(() => { setToday(loadTodayMinutes()); }, []);
   // استرجاع مؤقت كان شغال قبل ما الصفحة تتقفل
@@ -73,12 +95,12 @@ export function StudyTimer() {
     setToday(loadTodayMinutes());
     // جلسة التركيز (مش الاستراحة) بتتسجل كمان في سجل المذاكرة عشان تظهر في الرئيسية والسجل.
     if (mode === 'focus' || mode === 'custom') {
-      addSession({ subject: subject.trim() || 'مذاكرة', hours: Math.round((total / 3600) * 100) / 100, type: 'مذاكرة', notes: `مؤقت ${minutes} دقيقة` });
+      addSession({ subject: subject.trim() || 'مذاكرة', hours: Math.round((total / 3600) * 100) / 100, type: sessionType, notes: `مؤقت ${minutes} دقيقة` });
     }
     beep();
     if (mode === 'focus') confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 }, colors: ['#ff6b5f', '#70d6b0', '#19213a'] });
     if (Notification?.permission === 'granted') new Notification('Days and Life', { body: mode === 'focus' ? `خلصت جلسة تركيز ${minutes} دقيقة 👏` : 'خلصت الاستراحة، يلا نرجع للتركيز' });
-  }, [mode, subject, total]);
+  }, [mode, sessionType, subject, total]);
 
   useEffect(() => {
     if (!running || deadlineRef.current === null) return;
@@ -116,7 +138,7 @@ export function StudyTimer() {
   const mm = Math.floor(remaining / 60); const ss = remaining % 60;
 
   return (
-    <section className="card">
+    <section className="card" id="study-timer">
       <div className="flex items-center gap-2 font-bold"><Timer className="text-coral" />مؤقت المذاكرة</div>
       <div className="mt-4 flex flex-wrap gap-2">
         {MODES.map((m) => (
