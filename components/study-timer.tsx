@@ -1,7 +1,8 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
-import { BellRing, Pause, Play, RotateCcw, Timer } from 'lucide-react';
+import { BellRing, Clock3, Pause, Play, RotateCcw, Timer } from 'lucide-react';
 import { addSession, type SessionType } from '@/lib/sessions';
 import { useLanguage, type DictKey } from '@/lib/i18n';
 
@@ -140,49 +141,81 @@ export function StudyTimer() {
   const mm = Math.floor(remaining / 60); const ss = remaining % 60;
 
   return (
-    <section className="card" id="study-timer">
-      <div className="flex items-center gap-2 font-bold"><Timer className="text-coral" />{t('timer.timerTitle')}</div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {MODES.map((m) => (
-          <button key={m.id} type="button" onClick={() => pickMode(m.id, m.minutes)}
-            className={`rounded-full px-3 py-1.5 text-sm font-semibold ${mode === m.id ? 'bg-ink text-white dark:bg-coral' : 'border border-slate-200 dark:border-slate-700'}`}>
-            {t(m.labelKey)} {m.minutes} {t('timer.min')}
-          </button>
-        ))}
-        <label className="flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1.5 text-sm dark:border-slate-700">
-          {t('timer.custom')}
-          <input className="w-14 bg-transparent text-center font-bold outline-none" type="number" min={1} max={180} value={customMinutes}
-            onChange={(e) => { const v = Math.max(1, Math.min(180, Number(e.target.value) || 1)); setCustomMinutes(v); pickMode('custom', v); }} />
-          {t('timer.min')}
+    <motion.section
+      className="relative overflow-hidden rounded-[2rem] border border-slate-200/70 bg-gradient-to-br from-white via-[#fff8f6] to-[#eefdf6] p-6 shadow-[0_16px_50px_rgb(0,0,0,0.06)] dark:border-slate-800 dark:bg-slate-900 dark:bg-none sm:p-8"
+      id="study-timer"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+    >
+      <div className="flex items-center justify-center gap-2 font-black">
+        <span className="rounded-2xl bg-gradient-to-br from-coral to-amber-500 p-2 text-white shadow-md shadow-coral/30"><Timer size={18} /></span>
+        {t('timer.timerTitle')}
+      </div>
+
+      <div className="mt-5 flex flex-wrap justify-center gap-1 rounded-full bg-slate-100/80 p-1 dark:bg-slate-800/80">
+        {MODES.map((m) => {
+          const active = mode === m.id;
+          return (
+            <button key={m.id} type="button" onClick={() => pickMode(m.id, m.minutes)}
+              className={`relative rounded-full px-4 py-2 text-sm font-bold transition ${active ? 'text-ink dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
+              {active && <motion.span layoutId="timer-mode-pill" className="absolute inset-0 rounded-full bg-white shadow-sm dark:bg-slate-900" transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }} />}
+              <span className="relative">{t(m.labelKey)} {m.minutes} {t('timer.min')}</span>
+            </button>
+          );
+        })}
+        <label
+          className={`relative flex cursor-pointer items-center rounded-full px-4 py-2 text-sm font-bold transition ${mode === 'custom' ? 'text-ink dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+          onClick={() => { if (mode !== 'custom') pickMode('custom', customMinutes); }}
+        >
+          {mode === 'custom' && <motion.span layoutId="timer-mode-pill" className="absolute inset-0 rounded-full bg-white shadow-sm dark:bg-slate-900" transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }} />}
+          <span className="relative flex items-center gap-1.5">
+            {t('timer.custom')}
+            <input className="w-12 bg-transparent text-center font-black outline-none" type="number" min={1} max={180} value={customMinutes}
+              onChange={(e) => { const v = Math.max(1, Math.min(180, Number(e.target.value) || 1)); setCustomMinutes(v); pickMode('custom', v); }} />
+            {t('timer.min')}
+          </span>
         </label>
       </div>
-      <div className="mt-5 flex flex-col items-center gap-5 sm:flex-row sm:justify-around">
-        <div className="relative h-44 w-44">
+
+      <div className="mt-7 flex flex-col items-center">
+        <div className="relative h-60 w-60 sm:h-64 sm:w-64">
           <svg viewBox="0 0 200 200" className="h-full w-full -rotate-90">
-            <circle cx="100" cy="100" r={R} fill="none" strokeWidth="10" className="stroke-slate-200 dark:stroke-slate-800" />
-            <circle cx="100" cy="100" r={R} fill="none" strokeWidth="10" strokeLinecap="round"
-              className="stroke-coral transition-all duration-500" strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - progress)} />
+            <defs>
+              <linearGradient id="timer-ring-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#ff6b5f" />
+                <stop offset="100%" stopColor="#f59e0b" />
+              </linearGradient>
+            </defs>
+            <circle cx="100" cy="100" r={R} fill="none" strokeWidth="12" className="stroke-slate-200/70 dark:stroke-slate-800" />
+            <circle cx="100" cy="100" r={R} fill="none" strokeWidth="12" strokeLinecap="round" stroke="url(#timer-ring-grad)"
+              className="transition-all duration-500" strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - progress)}
+              style={{ filter: 'drop-shadow(0 6px 12px rgb(255 107 95 / 0.3))' }} />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-4xl font-black tabular-nums" dir="ltr">{String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}</span>
-            <span className="text-sm text-slate-500">{running ? t('timer.running') : finished ? t('timer.finished') : t('timer.ready')}</span>
+            <span className="text-6xl font-black tabular-nums tracking-tight" dir="ltr">{String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}</span>
+            <span className="mt-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">{running ? t('timer.running') : finished ? t('timer.finished') : t('timer.ready')}</span>
           </div>
         </div>
-        <div className="w-full max-w-xs space-y-3">
-          <input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={t('timer.subjectPlaceholder')} />
-          <div className="flex gap-2">
+
+        <div className="mt-6 w-full max-w-xs space-y-3">
+          <input className="input !rounded-full text-center" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={t('timer.subjectPlaceholder')} />
+          <div className="flex items-center gap-2">
             {running
-              ? <button type="button" className="btn-primary flex-1" onClick={pause}><Pause size={18} />{t('timer.pause')}</button>
-              : <button type="button" className="btn-primary flex-1" onClick={start}><Play size={18} />{remaining < total ? t('timer.resume') : t('timer.start')}</button>}
-            <button type="button" className="btn border border-slate-300" onClick={reset} aria-label={t('timer.reset')}><RotateCcw size={18} /></button>
+              ? <button type="button" className="flex flex-1 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-coral to-amber-500 py-3 font-black text-white shadow-lg shadow-coral/30 transition hover:opacity-95" onClick={pause}><Pause size={18} />{t('timer.pause')}</button>
+              : <button type="button" className="flex flex-1 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-coral to-amber-500 py-3 font-black text-white shadow-lg shadow-coral/30 transition hover:opacity-95" onClick={start}><Play size={18} />{remaining < total ? t('timer.resume') : t('timer.start')}</button>}
+            <button type="button" className="rounded-full border border-slate-200 bg-white/70 p-3 text-slate-500 transition hover:bg-white dark:border-slate-700 dark:bg-slate-800" onClick={reset} aria-label={t('timer.reset')}><RotateCcw size={18} /></button>
           </div>
-          {finished && <p className="font-semibold text-emerald-600">{locale === 'ar' ? `خلصت الجلسة 👏 اتسجلت في يومك: ${Math.round(total / 60)} دقيقة.` : `Session done 👏 Added to your day: ${Math.round(total / 60)} min.`}</p>}
-          <p className="text-sm text-slate-500">{t('timer.todaySessions')} <b>{today.sessions}</b> · <b>{today.minutes}</b> {t('timer.minutesWord')}</p>
-          <button type="button" className="flex items-center gap-2 text-sm font-semibold text-slate-500" onClick={() => Notification?.requestPermission?.()}>
+          {finished && <p className="rounded-2xl bg-emerald-50 px-3 py-2 text-center text-sm font-semibold text-emerald-600 dark:bg-emerald-950/50">{locale === 'ar' ? `خلصت الجلسة 👏 اتسجلت في يومك: ${Math.round(total / 60)} دقيقة.` : `Session done 👏 Added to your day: ${Math.round(total / 60)} min.`}</p>}
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700"><Play size={13} className="text-coral" />{today.sessions} {t('today.sessionsWord')}</span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700"><Clock3 size={13} className="text-coral" />{today.minutes} {t('timer.minutesShort')}</span>
+          </div>
+          <button type="button" className="mx-auto flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-coral" onClick={() => Notification?.requestPermission?.()}>
             <BellRing size={16} />{t('timer.enableNotif')}
           </button>
         </div>
       </div>
-    </section>
+    </motion.section>
   );
 }

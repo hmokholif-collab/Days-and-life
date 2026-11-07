@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, BookOpenCheck, LayoutDashboard, LogOut, Settings, Timer } from 'lucide-react';
+import { BarChart3, BookOpenCheck, CalendarDays, LayoutDashboard, LogOut, Settings, Timer } from 'lucide-react';
 import { ThemePicker } from './theme-picker';
 import { useLanguage, type DictKey } from '@/lib/i18n';
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -9,6 +9,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { t } = useLanguage();
   const links: { href: string; labelKey: DictKey; icon: typeof LayoutDashboard }[] = [
     { href: '/dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
+    { href: '/plan', labelKey: 'nav.plan', icon: CalendarDays },
     { href: '/timer', labelKey: 'nav.timer', icon: Timer },
     { href: '/log', labelKey: 'nav.log', icon: BookOpenCheck },
     { href: '/stats', labelKey: 'nav.stats', icon: BarChart3 },
