@@ -5,6 +5,7 @@ import confetti from 'canvas-confetti';
 import { BellRing, Clock3, Pause, Play, RotateCcw, Timer } from 'lucide-react';
 import { addSession, type SessionType } from '@/lib/sessions';
 import { useLanguage, type DictKey } from '@/lib/i18n';
+import { getNotificationState, requestNotificationPermission, showNotification, type NotifState } from '@/lib/notifications';
 
 type Mode = 'focus' | 'short' | 'long' | 'custom';
 const MODES: { id: Mode; labelKey: DictKey; minutes: number }[] = [
@@ -50,6 +51,7 @@ export function StudyTimer() {
   const [subject, setSubject] = useState('');
   const [sessionType, setSessionType] = useState<SessionType>('مذاكرة');
   const [today, setToday] = useState({ sessions: 0, minutes: 0 });
+  const [notif, setNotif] = useState<NotifState>('default');
   const deadlineRef = useRef<number | null>(null);
 
   // بدء جلسة من نموذج «جلسة جديدة»: ييجي بالمادة والمدة والتصنيف، والمؤقت يشتغل على طول.
@@ -73,7 +75,7 @@ export function StudyTimer() {
     return () => window.removeEventListener('days-life:start-session', onStart);
   }, []);
 
-  useEffect(() => { setToday(loadTodayMinutes()); }, []);
+  useEffect(() => { setToday(loadTodayMinutes()); setNotif(getNotificationState()); }, []);
   // استرجاع مؤقت كان شغال قبل ما الصفحة تتقفل
   useEffect(() => {
     try {
@@ -102,7 +104,7 @@ export function StudyTimer() {
     }
     beep();
     if (mode === 'focus') confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 }, colors: ['#ff6b5f', '#70d6b0', '#19213a'] });
-    if (Notification?.permission === 'granted') new Notification('Days and Life', { body: mode === 'focus' ? `${t('timer.focusDoneNotif')} ${minutes} ${locale === 'ar' ? 'دقيقة' : 'min'} 👏` : t('timer.breakDoneNotif') });
+    void showNotification('Days and Life', mode === 'focus' ? `${t('timer.focusDoneNotif')} ${minutes} ${locale === 'ar' ? 'دقيقة' : 'min'} 👏` : t('timer.breakDoneNotif'));
   }, [mode, sessionType, subject, total, t, locale]);
 
   useEffect(() => {
@@ -211,9 +213,11 @@ export function StudyTimer() {
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700"><Play size={13} className="text-coral" />{today.sessions} {t('today.sessionsWord')}</span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700"><Clock3 size={13} className="text-coral" />{today.minutes} {t('timer.minutesShort')}</span>
           </div>
-          <button type="button" className="mx-auto flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-coral" onClick={() => Notification?.requestPermission?.()}>
-            <BellRing size={16} />{t('timer.enableNotif')}
-          </button>
+          {notif === 'granted' ? <p className="text-center text-sm font-semibold text-emerald-600">{t('timer.notifOn')}</p> : notif === 'denied' ? <p className="text-center text-sm font-semibold text-red-600">{t('timer.notifDenied')}</p> : (
+            <button type="button" className="mx-auto flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-coral" onClick={async () => setNotif(await requestNotificationPermission())}>
+              <BellRing size={16} />{t('timer.enableNotif')}
+            </button>
+          )}
         </div>
       </div>
     </motion.section>
