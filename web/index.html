@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FOCUS ON LIFE — Dashboard</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<main>
+  <h1>FOCUS ON LIFE</h1>
+  <p class="muted">Dashboard — read-only. Facebook is local-only and never appears here.</p>
+
+  <section class="card">
+    <h2>Supabase connection</h2>
+    <p class="muted">Paste your Project URL + anon key. They stay in this browser only (localStorage).</p>
+    <label>Supabase URL <input id="url" type="text" placeholder="https://YOUR-PROJECT.supabase.co"></label>
+    <label>Anon key <input id="key" type="password" placeholder="YOUR-ANON-KEY"></label>
+    <button id="connect">Connect</button>
+    <p id="status" class="muted">Not connected.</p>
+  </section>
+
+  <section class="card">
+    <h2>Devices</h2>
+    <div id="devices">Connect to load devices.</div>
+  </section>
+
+  <section class="card">
+    <h2>Recent focus sessions</h2>
+    <div id="sessions">Connect to load sessions.</div>
+  </section>
+
+  <section class="card">
+    <h2>Emergency overrides</h2>
+    <div id="overrides">Connect to load overrides.</div>
+  </section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

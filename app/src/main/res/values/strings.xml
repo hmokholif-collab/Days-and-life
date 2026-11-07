@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">FOCUS ON LIFE</string>
+    <string name="accessibility_description">FOCUS ON LIFE uses Accessibility to detect when a blocked app opens during a focus session and show a blocking screen. It does not read screen content.</string>
+</resources>
