@@ -3,12 +3,13 @@ import { useEffect, useState } from 'react';
 import { BookOpen, Clock3, Flame, Trophy } from 'lucide-react';
 import { StudyTimer } from '@/components/study-timer';
 import { TaskForm } from '@/components/task-form';
-import { SESSIONS_EVENT, bestSubjectToday, currentStreak, formatHours, todayHours, todaySessions, weekHours, weekTotalHours, type StudySession } from '@/lib/sessions';
+import { SESSIONS_EVENT, bestSubjectToday, currentStreak, formatHours, syncWithSupabase, todayHours, todaySessions, weekHours, weekTotalHours, type StudySession } from '@/lib/sessions';
 export default function Dashboard() {
   const [sessions, setSessions] = useState<StudySession[]>([]);
   useEffect(() => {
     const refresh = () => setSessions(todaySessions());
     refresh();
+    void syncWithSupabase().then(() => refresh());
     window.addEventListener(SESSIONS_EVENT, refresh);
     return () => window.removeEventListener(SESSIONS_EVENT, refresh);
   }, []);

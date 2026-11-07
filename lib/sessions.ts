@@ -52,6 +52,25 @@ function save(sessions: StudySession[]) {
   } catch { /* التخزين المحلي غير متاح */ }
 }
 
+// استبدال كل الجلسات المحلية (بتستخدمها المزامنة بعد دمج جلسات السحابة).
+export function replaceSessions(sessions: StudySession[]) {
+  save(sessions);
+}
+
+// رفع/حذف في الخلفية من غير ما يوقف واجهة المستخدم؛ dynamic import عشان مفيش استيراد دائري.
+function syncInBackground(kind: 'push' | 'delete', payload: StudySession | string) {
+  if (typeof window === 'undefined') return;
+  void import('@/lib/supabase/sync').then((m) => {
+    if (kind === 'push') return m.pushSession(payload as StudySession);
+    return m.deleteRemoteSession(payload as string);
+  }).catch(() => { /* مفيش Supabase — الجلسة محلية بس */ });
+}
+
+// مزامنة كاملة مع Supabase (سحب + دمج + رفع)؛ بترجع 'local-only' لو مفيش إعدادات أو تسجيل دخول.
+export function syncWithSupabase(): Promise<'synced' | 'local-only'> {
+  return import('@/lib/supabase/sync').then((m) => m.syncSessions()).catch(() => 'local-only' as const);
+}
+
 export function addSession(input: { subject: string; hours: number; type: SessionType; notes?: string; date?: string }): StudySession {
   const session: StudySession = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -62,11 +81,13 @@ export function addSession(input: { subject: string; hours: number; type: Sessio
     notes: input.notes ?? '',
   };
   save([session, ...loadSessions()]);
+  syncInBackground('push', session);
   return session;
 }
 
 export function deleteSession(id: string) {
   save(loadSessions().filter((s) => s.id !== id));
+  syncInBackground('delete', id);
 }
 
 export function todaySessions(): StudySession[] {

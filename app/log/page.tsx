@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { Filter, Trash2 } from 'lucide-react';
-import { SESSIONS_EVENT, deleteSession, formatDateAr, formatHours, loadSessions, type StudySession } from '@/lib/sessions';
+import { SESSIONS_EVENT, deleteSession, formatDateAr, formatHours, loadSessions, syncWithSupabase, type StudySession } from '@/lib/sessions';
 export default function Log() {
   const [items, setItems] = useState<StudySession[]>([]);
   const [dateFilter, setDateFilter] = useState('');
@@ -10,6 +10,7 @@ export default function Log() {
   useEffect(() => {
     const refresh = () => setItems(loadSessions());
     refresh();
+    void syncWithSupabase().then(() => refresh());
     window.addEventListener(SESSIONS_EVENT, refresh);
     return () => window.removeEventListener(SESSIONS_EVENT, refresh);
   }, []);
