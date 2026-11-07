@@ -120,9 +120,9 @@ export function currentStreak(): number {
   return streak;
 }
 
-export function formatDateAr(iso: string): string {
+export function formatDateAr(iso: string, locale: 'ar' | 'en' = 'ar'): string {
   try {
-    return new Date(`${iso}T12:00:00`).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long' });
+    return new Date(`${iso}T12:00:00`).toLocaleDateString(locale === 'ar' ? 'ar-EG' : 'en-US', { day: 'numeric', month: 'long' });
   } catch {
     return iso;
   }
@@ -133,9 +133,11 @@ export function formatHours(h: number): string {
 }
 
 const DAY_NAMES_AR = ['أحد', 'اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
+const DAY_NAMES_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // ساعات آخر 7 أيام (من 6 أيام فاتوا لحد النهاردة)، بالترتيب، لاستخدامها في الرسوم البيانية.
-export function weekHours(): { day: string; hours: number }[] {
+export function weekHours(locale: 'ar' | 'en' = 'ar'): { day: string; hours: number }[] {
+  const names = locale === 'ar' ? DAY_NAMES_AR : DAY_NAMES_EN;
   const totals = new Map<string, number>();
   for (const s of loadSessions()) totals.set(s.date, (totals.get(s.date) ?? 0) + s.hours);
   const out: { day: string; hours: number }[] = [];
@@ -143,7 +145,7 @@ export function weekHours(): { day: string; hours: number }[] {
     const d = new Date();
     d.setDate(d.getDate() - offset);
     const iso = d.toISOString().slice(0, 10);
-    out.push({ day: DAY_NAMES_AR[d.getDay()], hours: Math.round((totals.get(iso) ?? 0) * 100) / 100 });
+    out.push({ day: names[d.getDay()], hours: Math.round((totals.get(iso) ?? 0) * 100) / 100 });
   }
   return out;
 }
@@ -192,11 +194,11 @@ export function subjectTotals(): { subject: string; hours: number; pct: number }
 }
 
 // ملاحظة ذكية من البيانات الحقيقية: أكتر مادة وأقل مادة.
-export function smartNote(): string {
+export function smartNote(locale: 'ar' | 'en' = 'ar'): string {
   const totals = subjectTotals();
-  if (totals.length === 0) return 'لسه مفيش جلسات مسجلة — ابدأ أول جلسة من الرئيسية وهنا هتظهر ملاحظة عن تقدمك.';
+  if (totals.length === 0) return locale === 'ar' ? 'لسه مفيش جلسات مسجلة — ابدأ أول جلسة من الرئيسية وهنا هتظهر ملاحظة عن تقدمك.' : 'No sessions logged yet — start your first session from the dashboard and a note about your progress will appear here.';
   const best = totals[0];
-  if (totals.length === 1) return `أداؤك في ${best.subject} ممتاز (${formatHours(best.hours)} ساعة). جرّب تضيف مادة تانية عشان توازن جدولك.`;
+  if (totals.length === 1) return locale === 'ar' ? `أداؤك في ${best.subject} ممتاز (${formatHours(best.hours)} ساعة). جرّب تضيف مادة تانية عشان توازن جدولك.` : `Your performance in ${best.subject} is excellent (${formatHours(best.hours)} h). Try adding another subject to balance your schedule.`;
   const least = totals[totals.length - 1];
-  return `أداؤك في ${best.subject} ممتاز (${formatHours(best.hours)} ساعة). جرّب تخصيص 30 دقيقة إضافية لـ ${least.subject} (${formatHours(least.hours)} ساعة بس) في بداية الأسبوع القادم لتحافظ على توازن المواد.`;
+  return locale === 'ar' ? `أداؤك في ${best.subject} ممتاز (${formatHours(best.hours)} ساعة). جرّب تخصيص 30 دقيقة إضافية لـ ${least.subject} (${formatHours(least.hours)} ساعة بس) في بداية الأسبوع القادم لتحافظ على توازن المواد.` : `Your performance in ${best.subject} is excellent (${formatHours(best.hours)} h). Try spending 30 extra minutes on ${least.subject} (only ${formatHours(least.hours)} h) at the start of next week to keep your subjects balanced.`;
 }
