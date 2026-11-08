@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Check, Flame, Play, Timer } from 'lucide-react';
-import { SESSIONS_EVENT, currentStreak, formatHours, todayHours, todaySessions, type StudySession } from '@/lib/sessions';
+import { SESSIONS_EVENT, cairoISOFromDate, currentStreak, formatHours, todayHours, todaySessions, type StudySession } from '@/lib/sessions';
 import { PLANS_EVENT, hoursForDay, isChecked, loadPlans, toggleCheck, type PlanItem } from '@/lib/plans';
 import { typeLabel, useLanguage } from '@/lib/i18n';
 
@@ -27,19 +27,20 @@ function useTodayData() {
       window.removeEventListener(SESSIONS_EVENT, refresh);
     };
   }, []);
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = cairoISOFromDate(new Date());
   const hours = todayHours();
   const streak = currentStreak();
   // أهم مهام اليوم: الخطط اللي لها هدف يومي، مرتبة حسب المتبقي (الأكبر أولًا)، أول 4.
+  // الخطط المخلصة (100%) بتنزل تحت الخطط اللي لسه مخلصتش.
   const topPlans: TopPlanItem[] = plans
     .filter((p) => p.dailyTarget !== undefined)
     .map((plan) => {
-      const todayH = Math.round(hoursForDay(plan.subject, todayIso) * 100) / 100;
+      const todayH = Math.round(hoursForDay(plan.subject, todayIso, plan.id) * 100) / 100;
       const target = plan.dailyTarget as number;
       const checked = isChecked(plan.id, todayIso);
       return { plan, todayH, remaining: Math.max(0, Math.round((target - todayH) * 100) / 100), pct: checked ? 100 : Math.min(100, Math.round((todayH / target) * 100)), checked };
     })
-    .sort((a, b) => b.remaining - a.remaining)
+    .sort((a, b) => (a.checked === b.checked ? b.remaining - a.remaining : a.checked ? 1 : -1))
     .slice(0, 4);
   return { sessions, hours, streak, topPlans, todayIso };
 }
@@ -117,11 +118,14 @@ export function TodayWidget({ detailed = false }: { detailed?: boolean }) {
           </Link>
         </div>
       ) : (
-        <div className="mt-5 flex items-center justify-between gap-2">
-          <p className="text-sm text-slate-500">
-            <b className="text-slate-700 dark:text-slate-200">{sessions.length}</b> {t('today.sessionsWord')} · <b className="text-slate-700 dark:text-slate-200">{formatHours(hours)}</b> {t('common.hoursWord')}
-          </p>
-          <Link href="/timer" className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-r from-coral to-amber-500 px-4 py-2 text-sm font-black text-white shadow-md shadow-coral/30 transition hover:opacity-95">
+        <div className="mt-5 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm text-slate-500">
+              <b className="text-slate-700 dark:text-slate-200">{sessions.length}</b> {t('today.sessionsWord')} · <b className="text-slate-700 dark:text-slate-200">{formatHours(hours)}</b> {t('common.hoursWord')}
+            </p>
+            <Link href="/today" className="text-xs font-bold text-coral">{t('today.openTodayPage')}</Link>
+          </div>
+          <Link href="/timer" className="flex items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-coral to-amber-500 px-4 py-2 text-sm font-black text-white shadow-md shadow-coral/30 transition hover:opacity-95">
             <Play size={15} />{t('today.openTimer')}
           </Link>
         </div>

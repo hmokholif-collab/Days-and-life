@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { BellRing, Clock3, Pause, Play, RotateCcw, Timer } from 'lucide-react';
-import { addSession, type SessionType } from '@/lib/sessions';
+import { addSession, cairoISOFromDate, type SessionType } from '@/lib/sessions';
 import { useLanguage, type DictKey } from '@/lib/i18n';
 import { getNotificationState, requestNotificationPermission, showNotification, type NotifState } from '@/lib/notifications';
 
@@ -16,7 +16,7 @@ const MODES: { id: Mode; labelKey: DictKey; minutes: number }[] = [
 const STORAGE_KEY = 'days-life-timer';
 const LOG_KEY = 'days-life-timer-sessions';
 
-function todayKey() { return new Date().toISOString().slice(0, 10); }
+function todayKey() { return cairoISOFromDate(new Date()); }
 function loadTodayMinutes(): { sessions: number; minutes: number } {
   try {
     const log = JSON.parse(localStorage.getItem(LOG_KEY) ?? '[]') as { date: string; minutes: number }[];
@@ -53,6 +53,8 @@ export function StudyTimer() {
   const [today, setToday] = useState({ sessions: 0, minutes: 0 });
   const [notif, setNotif] = useState<NotifState>('default');
   const deadlineRef = useRef<number | null>(null);
+  // حارس ضد تسجيل الجلسة مرتين: finish() بتتنفذ مرة واحدة بس لكل جلسة.
+  const loggedRef = useRef(false);
 
   // بدء جلسة من نموذج «جلسة جديدة»: ييجي بالمادة والمدة والتصنيف، والمؤقت يشتغل على طول.
   useEffect(() => {
@@ -66,6 +68,7 @@ export function StudyTimer() {
       setCustomMinutes(minutes);
       setTotal(minutes * 60); setRemaining(minutes * 60);
       setFinished(false);
+      loggedRef.current = false;
       const deadline = Date.now() + minutes * 60 * 1000;
       deadlineRef.current = deadline; setRunning(true);
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ deadline, total: minutes * 60, mode: 'custom', subject: subj }));
@@ -76,11 +79,18 @@ export function StudyTimer() {
   }, []);
 
   useEffect(() => { setToday(loadTodayMinutes()); setNotif(getNotificationState()); }, []);
-  // استرجاع مؤقت كان شغال قبل ما الصفحة تتقفل
+  // استرجاع مؤقت كان شغال قبل ما الصفحة تتقفل — أو موقوف (بيحافظ على الوقت المتبقي من غير ما يكمل لوحده).
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as { deadline: number; total: number; mode: Mode; subject: string } | null;
-      if (saved && saved.deadline > Date.now()) {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as { deadline?: number; remaining?: number; total: number; mode: Mode; subject: string; paused?: boolean } | null;
+      if (!saved) return;
+      if (saved.paused) {
+        setMode(saved.mode); setTotal(saved.total); setSubject(saved.subject ?? '');
+        setRemaining(Math.max(0, saved.remaining ?? saved.total));
+        setRunning(false);
+        return;
+      }
+      if (saved.deadline && saved.deadline > Date.now()) {
         setMode(saved.mode); setTotal(saved.total); setSubject(saved.subject ?? '');
         setRemaining(Math.ceil((saved.deadline - Date.now()) / 1000));
         deadlineRef.current = saved.deadline; setRunning(true);
@@ -89,6 +99,8 @@ export function StudyTimer() {
   }, []);
 
   const finish = useCallback(() => {
+    if (loggedRef.current) return; // اتسجلت خلاص — متسجلش تاني
+    loggedRef.current = true;
     setRunning(false); setFinished(true); deadlineRef.current = null;
     localStorage.removeItem(STORAGE_KEY);
     const minutes = Math.round(total / 60);
@@ -127,16 +139,21 @@ export function StudyTimer() {
 
   function pickMode(id: Mode, minutes: number) {
     setMode(id); setTotal(minutes * 60); setRemaining(minutes * 60);
-    setRunning(false); setFinished(false); deadlineRef.current = null;
+    setRunning(false); setFinished(false); deadlineRef.current = null; loggedRef.current = false;
     localStorage.removeItem(STORAGE_KEY);
   }
   function start() {
+    if (remaining <= 0) return; // الجلسة خلصت واتسجلت — لازم "إعادة تعيين" الأول عشان متتسجلش تاني
     const deadline = Date.now() + remaining * 1000;
     deadlineRef.current = deadline; setRunning(true); setFinished(false);
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ deadline, total, mode, subject }));
   }
-  function pause() { setRunning(false); deadlineRef.current = null; localStorage.removeItem(STORAGE_KEY); }
-  function reset() { pause(); setRemaining(total); setFinished(false); }
+  // الإيقاف المؤقت بيحفظ الوقت المتبقي — لو قفل الصفحة وهو موقف، الوقت مش بيضيع.
+  function pause() {
+    setRunning(false); deadlineRef.current = null;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ remaining, total, mode, subject, paused: true }));
+  }
+  function reset() { setRunning(false); deadlineRef.current = null; loggedRef.current = false; localStorage.removeItem(STORAGE_KEY); setRemaining(total); setFinished(false); }
 
   const progress = total > 0 ? 1 - remaining / total : 0;
   const R = 84; const CIRC = 2 * Math.PI * R;
@@ -205,7 +222,7 @@ export function StudyTimer() {
           <div className="flex items-center gap-2">
             {running
               ? <button type="button" className="flex flex-1 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-coral to-amber-500 py-3 font-black text-white shadow-lg shadow-coral/30 transition hover:opacity-95" onClick={pause}><Pause size={18} />{t('timer.pause')}</button>
-              : <button type="button" className="flex flex-1 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-coral to-amber-500 py-3 font-black text-white shadow-lg shadow-coral/30 transition hover:opacity-95" onClick={start}><Play size={18} />{remaining < total ? t('timer.resume') : t('timer.start')}</button>}
+              : <button type="button" disabled={finished && remaining === 0} className="flex flex-1 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-coral to-amber-500 py-3 font-black text-white shadow-lg shadow-coral/30 transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-40" onClick={start}><Play size={18} />{remaining < total ? t('timer.resume') : t('timer.start')}</button>}
             <button type="button" className="rounded-full border border-slate-200 bg-white/70 p-3 text-slate-500 transition hover:bg-white dark:border-slate-700 dark:bg-slate-800" onClick={reset} aria-label={t('timer.reset')}><RotateCcw size={18} /></button>
           </div>
           {finished && <p className="rounded-2xl bg-emerald-50 px-3 py-2 text-center text-sm font-semibold text-emerald-600 dark:bg-emerald-950/50">{locale === 'ar' ? `خلصت الجلسة 👏 اتسجلت في يومك: ${Math.round(total / 60)} دقيقة.` : `Session done 👏 Added to your day: ${Math.round(total / 60)} min.`}</p>}

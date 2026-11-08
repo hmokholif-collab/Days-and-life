@@ -30,7 +30,9 @@ async function currentUserId(): Promise<string | null> {
 }
 
 // رفع جلسة محلية واحدة لـ Supabase (insert أول مرة، وبعدها update).
+// الجلسات التجريبية (الديمو) عمرها ما تترفع — دي للعرض بس.
 export async function pushSession(session: StudySession): Promise<void> {
+  if (session.demo === true || session.id.startsWith('seed-')) return;
   const supabase = getClientOrNull();
   if (!supabase) return;
   const userId = await currentUserId();
@@ -72,14 +74,18 @@ export async function deleteRemoteSession(localId: string): Promise<void> {
 }
 
 // مزامنة كاملة عند فتح التطبيق: سحب جلسات السحابة ودمجها مع المحلي، ورفع الجلسات المحلية اللي لسه مرفوعة.
-export async function syncSessions(): Promise<'synced' | 'local-only'> {
+// بترجع 'table-missing' لو جدول study_sessions مش موجود (الـ migration لسه متنفذش).
+export async function syncSessions(): Promise<'synced' | 'local-only' | 'table-missing'> {
   const supabase = getClientOrNull();
   if (!supabase) return 'local-only';
   const userId = await currentUserId();
   if (!userId) return 'local-only';
   try {
     const { data, error } = await supabase.from('study_sessions').select('id, subject_name, hours, type, notes, session_date').eq('user_id', userId).order('session_date', { ascending: false });
-    if (error) throw error;
+    if (error) {
+      if (isMissingTableError(error)) return 'table-missing';
+      throw error;
+    }
     const map = loadMap();
     const uuidToLocal: Record<string, string> = {};
     for (const [localId, uuid] of Object.entries(map)) uuidToLocal[uuid] = localId;
@@ -96,18 +102,27 @@ export async function syncSessions(): Promise<'synced' | 'local-only'> {
     saveMap(map);
     const merged = [...byId.values()].sort((a, b) => (a.date < b.date ? 1 : -1));
     if (changed) replaceSessions(merged);
-    for (const s of merged) if (!map[s.id]) await pushSession(s);
+    for (const s of merged) if (!map[s.id] && !s.demo && !s.id.startsWith('seed-')) await pushSession(s);
     return 'synced';
   } catch {
     return 'local-only';
   }
 }
 
-export async function getSyncStatus(): Promise<{ configured: boolean; signedIn: boolean; email?: string }> {
+function isMissingTableError(error: { code?: string; message?: string }): boolean {
+  // PostgREST: 42P01 = undefined_table — الجدول مش موجود (الـ migration متنفذش).
+  return error.code === '42P01' || (error.message ?? '').includes('does not exist');
+}
+
+export async function getSyncStatus(): Promise<{ configured: boolean; signedIn: boolean; email?: string; tableOk?: boolean; tableMissing?: boolean }> {
   const supabase = getClientOrNull();
   if (!supabase) return { configured: false, signedIn: false };
   try {
     const { data } = await supabase.auth.getUser();
-    return { configured: true, signedIn: !!data.user, email: data.user?.email };
+    if (!data.user) return { configured: true, signedIn: false };
+    // فحص حقيقي: هل جدول study_sessions موجود فعلًا؟ مش كفاية إنك مسجّل دخول.
+    const { error } = await supabase.from('study_sessions').select('id').limit(1);
+    if (error) return { configured: true, signedIn: true, email: data.user.email, tableOk: false, tableMissing: isMissingTableError(error) };
+    return { configured: true, signedIn: true, email: data.user.email, tableOk: true };
   } catch { return { configured: true, signedIn: false }; }
 }

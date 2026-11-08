@@ -9,23 +9,66 @@ export interface StudySession {
   hours: number;
   type: SessionType;
   notes: string;
+  /** جلسة تجريبية (ديمو) — عمرها ما تترفع لـ Supabase. */
+  demo?: boolean;
+  /** id الخطة المرتبطة بالجلسة (لو اتعملت من مادة ليها خطة) — المطابقة بالاسم بديل احتياطي للبيانات القديمة. */
+  planId?: string;
 }
 
 const KEY = 'days-life-sessions';
 const SEEDED_KEY = 'days-life-sessions-seeded';
 export const SESSIONS_EVENT = 'days-life:sessions';
+const WEEKLY_GOAL_KEY = 'days-life-weekly-goal';
+const PLANS_KEY = 'days-life-plans';
 
-function todayISO(offsetDays = 0): string {
+// كل التواريخ بتوقيت القاهرة (Africa/Cairo)، مش UTC —
+// عشان الجلسات بعد نص الليل لحد 2 الفجر متتسجلش بتاريخ امبارح.
+const cairoFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit' });
+export function cairoISOFromDate(d: Date): string {
+  return cairoFormatter.format(d);
+}
+function cairoISO(offsetDays = 0): string {
   const d = new Date();
   d.setDate(d.getDate() - offsetDays);
-  return d.toISOString().slice(0, 10);
+  return cairoISOFromDate(d);
+}
+
+export function getWeeklyGoal(): number {
+  try {
+    const v = Number(localStorage.getItem(WEEKLY_GOAL_KEY));
+    if (Number.isFinite(v) && v >= 1 && v <= 100) return Math.round(v);
+  } catch { /* مفيش إعداد محفوظ */ }
+  return 15;
+}
+
+export function setWeeklyGoal(hours: number): void {
+  try {
+    const v = Math.max(1, Math.min(100, Math.round(hours) || 15));
+    localStorage.setItem(WEEKLY_GOAL_KEY, String(v));
+  } catch { /* التخزين المحلي غير متاح */ }
+}
+
+export function isDemoSession(s: StudySession): boolean {
+  return s.demo === true || s.id.startsWith('seed-');
+}
+
+/** id الخطة اللي اسم مادتها مطابق لاسم الجلسة (لو فيه خطة) — عشان الجلسة ترتبط بالخطة حتى لو اتغير اسم المادة بعد كده. */
+function findPlanIdForSubject(subject: string): string | undefined {
+  try {
+    const plans = JSON.parse(localStorage.getItem(PLANS_KEY) ?? '[]') as { id: string; subject: string }[];
+    return plans.find((p) => p.subject.trim() === subject.trim())?.id;
+  } catch { return undefined; }
+}
+
+function todayISO(offsetDays = 0): string {
+  return cairoISO(offsetDays);
 }
 
 function seed(): StudySession[] {
   return [
-    { id: 'seed-1', date: todayISO(0), subject: 'رياضيات', hours: 1.5, type: 'مذاكرة', notes: 'حل مسائل التفاضل' },
-    { id: 'seed-2', date: todayISO(0), subject: 'فيزياء', hours: 1, type: 'مراجعة', notes: 'الفصل الثالث' },
-    { id: 'seed-3', date: todayISO(1), subject: 'لغة إنجليزية', hours: 2, type: 'واجب', notes: 'كتابة مقال' },
+    { id: 'seed-1', date: todayISO(0), subject: 'رياضيات', hours: 1.5, type: 'مذاكرة', notes: 'حل مسائل التفاضل', demo: true },
+    { id: 'seed-2', date: todayISO(0), subject: 'فيزياء', hours: 1, type: 'مراجعة', notes: 'الفصل الثالث', demo: true },
+    { id: 'seed-3', date: todayISO(1), subject: 'لغة إنجليزية', hours: 2, type: 'واجب', notes: 'كتابة مقال', demo: true },
   ];
 }
 
@@ -66,12 +109,12 @@ function syncInBackground(kind: 'push' | 'delete', payload: StudySession | strin
   }).catch(() => { /* مفيش Supabase — الجلسة محلية بس */ });
 }
 
-// مزامنة كاملة مع Supabase (سحب + دمج + رفع)؛ بترجع 'local-only' لو مفيش إعدادات أو تسجيل دخول.
-export function syncWithSupabase(): Promise<'synced' | 'local-only'> {
+// مزامنة كاملة مع Supabase (سحب + دمج + رفع)؛ بترجع 'local-only' لو مفيش إعدادات أو تسجيل دخول، و'table-missing' لو الجدول مش موجود.
+export function syncWithSupabase(): Promise<'synced' | 'local-only' | 'table-missing'> {
   return import('@/lib/supabase/sync').then((m) => m.syncSessions()).catch(() => 'local-only' as const);
 }
 
-export function addSession(input: { subject: string; hours: number; type: SessionType; notes?: string; date?: string }): StudySession {
+export function addSession(input: { subject: string; hours: number; type: SessionType; notes?: string; date?: string; planId?: string }): StudySession {
   const session: StudySession = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     date: input.date ?? todayISO(0),
@@ -79,8 +122,11 @@ export function addSession(input: { subject: string; hours: number; type: Sessio
     hours: input.hours,
     type: input.type,
     notes: input.notes ?? '',
+    planId: input.planId ?? findPlanIdForSubject(input.subject),
   };
-  save([session, ...loadSessions()]);
+  // أول جلسة حقيقية بتشيل الجلسات التجريبية — عشان الإحصائيات تبقى حقيقية من أول يوم.
+  const rest = loadSessions().filter((s) => !isDemoSession(s));
+  save([session, ...rest]);
   syncInBackground('push', session);
   return session;
 }
@@ -113,7 +159,7 @@ export function currentStreak(): number {
   let streak = 0;
   let cursor = new Date();
   if (!dates.has(todayISO(0))) cursor.setDate(cursor.getDate() - 1);
-  while (dates.has(cursor.toISOString().slice(0, 10))) {
+  while (dates.has(cairoISOFromDate(cursor))) {
     streak++;
     cursor.setDate(cursor.getDate() - 1);
   }
@@ -144,7 +190,7 @@ export function weekHours(locale: 'ar' | 'en' = 'ar'): { day: string; hours: num
   for (let offset = 6; offset >= 0; offset--) {
     const d = new Date();
     d.setDate(d.getDate() - offset);
-    const iso = d.toISOString().slice(0, 10);
+    const iso = cairoISOFromDate(d);
     out.push({ day: names[d.getDay()], hours: Math.round((totals.get(iso) ?? 0) * 100) / 100 });
   }
   return out;
@@ -156,13 +202,13 @@ export function weekTotalHours(): number {
 
 // إجمالي ساعات الشهر الحالي.
 export function monthTotalHours(): number {
-  const prefix = new Date().toISOString().slice(0, 7);
+  const prefix = cairoISO(0).slice(0, 7);
   return loadSessions().filter((s) => s.date.startsWith(prefix)).reduce((sum, s) => sum + s.hours, 0);
 }
 
 // متوسط ساعات اليوم في الشهر الحالي (من أول الشهر لحد النهاردة).
 export function dailyAverageThisMonth(): number {
-  const dayOfMonth = new Date().getDate();
+  const dayOfMonth = Number(cairoISO(0).slice(8, 10));
   return Math.round((monthTotalHours() / dayOfMonth) * 100) / 100;
 }
 

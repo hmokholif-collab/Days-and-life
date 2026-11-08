@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Check, Plus, Trash2 } from 'lucide-react';
 import { PLANS_EVENT, addPlan, dayPct, deletePlan, hoursForDay, hoursForWeek, isChecked, loadPlans, toggleCheck, updatePlan, weekDays, type PlanItem } from '@/lib/plans';
-import { SESSIONS_EVENT, formatDateAr, formatHours } from '@/lib/sessions';
+import { SESSIONS_EVENT, cairoISOFromDate, formatDateAr, formatHours } from '@/lib/sessions';
 import { useLanguage } from '@/lib/i18n';
 
 type EditField = 'subject' | 'dailyTarget' | 'weeklyTarget';
@@ -85,12 +85,14 @@ export default function Plan() {
   }, []);
 
   const week = weekDays(locale);
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = cairoISOFromDate(new Date());
   const daysLeft = Math.max(1, week.filter((d) => d.iso >= todayIso).length);
 
   function saveSubject(plan: PlanItem, v: string) {
     const name = v.trim();
-    if (name && name !== plan.subject) updatePlan(plan.id, { subject: name, dailyTarget: plan.dailyTarget, weeklyTarget: plan.weeklyTarget });
+    // صف من غير اسم مش بيتسجل — لو سابه فاضي، الصف بيتمسح.
+    if (!name) { deletePlan(plan.id); setEditing(null); return; }
+    if (name !== plan.subject) updatePlan(plan.id, { subject: name, dailyTarget: plan.dailyTarget, weeklyTarget: plan.weeklyTarget });
     setEditing(null);
   }
   function saveDaily(plan: PlanItem, v: string) {
@@ -105,11 +107,13 @@ export default function Plan() {
   }
 
   function addRow() {
-    const plan = addPlan({ subject: t('plan.newSubject') });
+    // صف جديد باسم فاضي — لازم يكتب اسم المادة قبل ما يتسجل، ولو سابه فاضي الصف بيتمسح (شوف saveSubject).
+    const plan = addPlan({ subject: '' });
     setEditing({ id: plan.id, field: 'subject' });
   }
 
   function removeRow(plan: PlanItem) {
+    if (!window.confirm(t('common.confirmDelete'))) return;
     if (editing?.id === plan.id) setEditing(null);
     deletePlan(plan.id);
   }
@@ -146,10 +150,10 @@ export default function Plan() {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/70">
               {plans.map((plan, idx) => {
-                const todayH = Math.round(hoursForDay(plan.subject, todayIso) * 100) / 100;
-                const weekH = Math.round(hoursForWeek(plan.subject) * 100) / 100;
+                const todayH = Math.round(hoursForDay(plan.subject, todayIso, plan.id) * 100) / 100;
+                const weekH = Math.round(hoursForWeek(plan.subject, plan.id) * 100) / 100;
                 const remaining = plan.weeklyTarget ? Math.max(0, Math.round((plan.weeklyTarget - weekH) * 100) / 100) : null;
-                const pct = plan.weeklyTarget ? Math.round((weekH / plan.weeklyTarget) * 100) : null;
+                const pct = plan.weeklyTarget ? Math.min(100, Math.round((weekH / plan.weeklyTarget) * 100)) : null;
                 const done = plan.weeklyTarget !== undefined && weekH >= plan.weeklyTarget;
                 const inProgress = !done && weekH > 0;
                 return (
@@ -231,7 +235,7 @@ export default function Plan() {
                       )}
                     </td>
                     {week.map((d) => {
-                      const h = hoursForDay(plan.subject, d.iso);
+                      const h = hoursForDay(plan.subject, d.iso, plan.id);
                       const checked = isChecked(plan.id, d.iso);
                       const pct = dayPct(plan, d.iso);
                       const isToday = d.iso === todayIso;
@@ -275,14 +279,14 @@ export default function Plan() {
       {plans.length > 0 && (
         <div className="mt-5 space-y-4">
           {plans.map((plan, idx) => {
-            const todayH = Math.round(hoursForDay(plan.subject, todayIso) * 100) / 100;
-            const weekH = Math.round(hoursForWeek(plan.subject) * 100) / 100;
+            const todayH = Math.round(hoursForDay(plan.subject, todayIso, plan.id) * 100) / 100;
+            const weekH = Math.round(hoursForWeek(plan.subject, plan.id) * 100) / 100;
             const remaining = plan.weeklyTarget ? Math.max(0, plan.weeklyTarget - weekH) : null;
             const todayPct = dayPct(plan, todayIso);
             const todayDone = todayPct === 100;
             const weekDone = plan.weeklyTarget !== undefined && weekH >= plan.weeklyTarget;
-            const daysStudied = week.filter((d) => hoursForDay(plan.subject, d.iso) > 0 || isChecked(plan.id, d.iso)).length;
-            const pct = plan.weeklyTarget ? Math.round((weekH / plan.weeklyTarget) * 100) : null;
+            const daysStudied = week.filter((d) => hoursForDay(plan.subject, d.iso, plan.id) > 0 || isChecked(plan.id, d.iso)).length;
+            const pct = plan.weeklyTarget ? Math.min(100, Math.round((weekH / plan.weeklyTarget) * 100)) : null;
             return (
               <motion.section
                 className="card"

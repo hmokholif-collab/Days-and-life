@@ -48,6 +48,7 @@ export function updatePlan(id: string, input: { subject: string; dailyTarget?: n
 
 export function deletePlan(id: string) {
   save(loadPlans().filter((p) => p.id !== id));
+  deleteChecks(id);
 }
 
 const DAY_NAMES_AR = ['أحد', 'اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
@@ -71,20 +72,26 @@ export function weekDays(locale: 'ar' | 'en' = 'ar'): { iso: string; label: stri
   return out;
 }
 
-// مجموع ساعات مادة معينة في يوم معين (المطابقة بعد trim).
-export function hoursForDay(subject: string, iso: string): number {
-  const target = subject.trim();
+// مجموع ساعات مادة معينة في يوم معين.
+// الأولوية للمطابقة بـ planId (عشان تغيير اسم المادة ميفقدش التاريخ)؛
+// والجلسات القديمة اللي مفيهاش planId بتتطابق بالاسم زي الأول.
+function sessionMatchesPlan(s: { subject: string; planId?: string }, subject: string, planId?: string): boolean {
+  if (planId && s.planId) return s.planId === planId;
+  if (s.planId && planId) return false; // الجلسة مربوطة بخطة تانية — الاسم وحده مش كفاية
+  return s.subject.trim() === subject.trim();
+}
+
+export function hoursForDay(subject: string, iso: string, planId?: string): number {
   return loadSessions()
-    .filter((s) => s.date === iso && s.subject.trim() === target)
+    .filter((s) => s.date === iso && sessionMatchesPlan(s, subject, planId))
     .reduce((sum, s) => sum + s.hours, 0);
 }
 
 // مجموع ساعات مادة معينة في الأسبوع الحالي (السبت–الجمعة).
-export function hoursForWeek(subject: string): number {
+export function hoursForWeek(subject: string, planId?: string): number {
   const isos = new Set(weekDays().map((d) => d.iso));
-  const target = subject.trim();
   return loadSessions()
-    .filter((s) => isos.has(s.date) && s.subject.trim() === target)
+    .filter((s) => isos.has(s.date) && sessionMatchesPlan(s, subject, planId))
     .reduce((sum, s) => sum + s.hours, 0);
 }
 
@@ -109,6 +116,15 @@ function saveChecks(checks: PlanChecks) {
   } catch { /* التخزين المحلي غير متاح */ }
 }
 
+// مسح علامات خطة محذوفة عشان متفضلش يتيمة في التخزين.
+export function deleteChecks(planId: string): void {
+  const checks = loadChecks();
+  if (checks[planId]) {
+    delete checks[planId];
+    saveChecks(checks);
+  }
+}
+
 export function isChecked(planId: string, iso: string): boolean {
   return loadChecks()[planId]?.[iso] === true;
 }
@@ -127,5 +143,5 @@ export function toggleCheck(planId: string, iso: string): void {
 export function dayPct(plan: PlanItem, iso: string): number | null {
   if (!plan.dailyTarget) return null;
   if (isChecked(plan.id, iso)) return 100;
-  return Math.min(100, Math.round((hoursForDay(plan.subject, iso) / plan.dailyTarget) * 100));
+  return Math.min(100, Math.round((hoursForDay(plan.subject, iso, plan.id) / plan.dailyTarget) * 100));
 }
