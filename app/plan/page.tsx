@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Check, Plus, Trash2 } from 'lucide-react';
-import { PLANS_EVENT, addPlan, dayPct, deletePlan, hoursForDay, hoursForWeek, isChecked, loadPlans, toggleCheck, updatePlan, weekDays, type PlanItem } from '@/lib/plans';
+import { PLANS_EVENT, addPlan, dayPct, deletePlan, hoursForDay, hoursForWeek, isChecked, loadPlans, planExists, toggleCheck, updatePlan, weekDays, type PlanItem } from '@/lib/plans';
 import { SESSIONS_EVENT, cairoISOFromDate, formatDateAr, formatHours } from '@/lib/sessions';
 import { useLanguage } from '@/lib/i18n';
 
@@ -72,8 +72,11 @@ export default function Plan() {
   const { t, locale } = useLanguage();
   const [plans, setPlans] = useState<PlanItem[]>([]);
   const [editing, setEditing] = useState<{ id: string; field: EditField } | null>(null);
+  const [dupMsg, setDupMsg] = useState(false);
 
   useEffect(() => {
+    // صفوف فاضية متسابة من زيارة فاتت — تتحذف أول ما الصفحة تفتح.
+    for (const p of loadPlans()) if (!p.subject.trim()) deletePlan(p.id);
     const refresh = () => setPlans(loadPlans());
     refresh();
     window.addEventListener(PLANS_EVENT, refresh);
@@ -81,6 +84,8 @@ export default function Plan() {
     return () => {
       window.removeEventListener(PLANS_EVENT, refresh);
       window.removeEventListener(SESSIONS_EVENT, refresh);
+      // لو ساب صف فاضي ومشي من الصفحة، الصف بيتمسح.
+      for (const p of loadPlans()) if (!p.subject.trim()) deletePlan(p.id);
     };
   }, []);
 
@@ -92,6 +97,14 @@ export default function Plan() {
     const name = v.trim();
     // صف من غير اسم مش بيتسجل — لو سابه فاضي، الصف بيتمسح.
     if (!name) { deletePlan(plan.id); setEditing(null); return; }
+    // مينفعش خطتين لنفس المادة — التانية هتفضل صفر على طول.
+    if (planExists(name, plan.id)) {
+      setDupMsg(true);
+      setTimeout(() => setDupMsg(false), 3000);
+      if (!plan.subject.trim()) deletePlan(plan.id);
+      setEditing(null);
+      return;
+    }
     if (name !== plan.subject) updatePlan(plan.id, { subject: name, dailyTarget: plan.dailyTarget, weeklyTarget: plan.weeklyTarget });
     setEditing(null);
   }
@@ -122,6 +135,7 @@ export default function Plan() {
     <div className="mx-auto max-w-6xl p-5 md:p-10">
       <h1 className="text-3xl font-black">{t('plan.title')}</h1>
       <p className="mt-2 text-slate-500">{t('plan.subtitle')}</p>
+      {dupMsg && <p className="mt-2 text-sm font-semibold text-red-500">{t('plan.duplicate')}</p>}
       <p className="mt-1 text-sm text-slate-500">{formatDateAr(week[0].iso, locale)} – {formatDateAr(week[6].iso, locale)}</p>
 
       {plans.length === 0 ? (
