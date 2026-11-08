@@ -137,7 +137,8 @@ export function deleteSession(id: string) {
 }
 
 // تعديل جلسة من السجل (من غير حذف وإعادة إدخال) — ولو اتغير اسم المادة، الخطة المرتبطة بتتحدث.
-export function updateSession(id: string, patch: { subject: string; hours: number; type: SessionType; notes: string }): StudySession | null {
+// التاريخ اختياري: لو اتبعت تاريخ صحيح بيتطبق، غير كده التاريخ القديم بيفضل.
+export function updateSession(id: string, patch: { subject: string; hours: number; type: SessionType; notes: string; date?: string }): StudySession | null {
   const sessions = loadSessions();
   const idx = sessions.findIndex((s) => s.id === id);
   if (idx === -1) return null;
@@ -148,6 +149,7 @@ export function updateSession(id: string, patch: { subject: string; hours: numbe
     hours: patch.hours,
     type: patch.type,
     notes: patch.notes,
+    date: patch.date && /^\d{4}-\d{2}-\d{2}$/.test(patch.date) ? patch.date : old.date,
     planId: patch.subject.trim() === old.subject.trim() ? old.planId : findPlanIdForSubject(patch.subject),
   };
   sessions[idx] = updated;

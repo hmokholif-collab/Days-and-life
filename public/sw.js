@@ -3,9 +3,9 @@
 // - الملفات الثابتة (/_next/static/ والأيقونات): من الكاش الأول، والشبكة تحدّثه في الخلفية.
 // - طلبات Supabase والـ API مش بتتكاش خالص — لازم تفضل حيّة، ولو فشلت بتفشل عادي من غير ما الكاش يبوّظها.
 // - اسم الكاش فيه رقم إصدار — أي نسخة جديدة بتمسح القديمة، فالتحديثات مش بتعلق.
-const CACHE_NAME = 'days-life-v2';
+const CACHE_NAME = 'days-life-v3';
 const PRECACHE = ['/', '/dashboard', '/timer', '/today', '/icon.svg', '/manifest.webmanifest'];
-const OFFLINE_HTML = '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Days and Life — مفيش نت</title><style>body{font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;background:#fff8f6;color:#19213a;text-align:center;padding:24px}h1{font-size:24px}a{display:inline-block;margin-top:16px;padding:12px 24px;border-radius:999px;background:#ff6b5f;color:#fff;text-decoration:none;font-weight:700}</style></head><body><div><h1>📶 مفيش اتصال بالإنترنت</h1><p>التطبيق محتاج نت عشان يفتح — اتأكد من الاتصال وحاول تاني.</p><a href="/dashboard">حاول تاني</a></div></body></html>';
+const OFFLINE_HTML = '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Days and Life — مفيش نت</title><style>body{font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;background:#fff8f6;color:#19213a;text-align:center;padding:24px}h1{font-size:24px}a{display:inline-block;margin-top:16px;padding:12px 24px;border-radius:999px;background:#ff6b5f;color:#fff;text-decoration:none;font-weight:700}</style></head><body><div><h1>📶 مفيش اتصال بالإنترنت</h1><p>الصفحة دي لسه متفتحتش وانت متصل، فمش متخزنة للاستخدام أوفلاين — افتحها مرة وانت أونلاين وهتشتغل من غير نت بعد كده. الصفحات اللي فتحتها قبل كده بتشتغل عادي.</p><a href="/dashboard">حاول تاني</a></div></body></html>';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

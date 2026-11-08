@@ -57,6 +57,9 @@ export function StudyTimer() {
   const loggedRef = useRef(false);
   // لو المؤقت خلص والتطبيق كان مقفول، الجلسة بتتسجل أول ما الصفحة تفتح.
   const restoreFinishRef = useRef(false);
+  // بيانات الجلسة اللي خلصت والتطبيق مقفول — بتتاخد من التخزين مش من الحالة،
+  // عشان حالة المكوّن لسه متطبقتش أول ما الصفحة تفتح (فكانت بتتسجل 25 دقيقة/تركيز غلط).
+  const restorePayloadRef = useRef<{ mode: Mode; total: number; subject: string } | null>(null);
 
   // بدء جلسة من نموذج «جلسة جديدة»: ييجي بالمادة والمدة والتصنيف، والمؤقت يشتغل على طول.
   useEffect(() => {
@@ -102,39 +105,47 @@ export function StudyTimer() {
         setRemaining(0); setFinished(true);
         loggedRef.current = false;
         restoreFinishRef.current = true;
+        restorePayloadRef.current = { mode: saved.mode, total: saved.total, subject: saved.subject ?? '' };
       }
     } catch { /* تجاهل بيانات تالفة */ }
   }, []);
 
-  const finish = useCallback(() => {
+  // override: بيانات الجلسة من التخزين (لما المؤقت يخلص والتطبيق مقفول) —
+  // من غيرها finish() كانت بتقرا الحالة الأولية (25 دقيقة/تركيز) وتسجّل غلط.
+  const finish = useCallback((override?: { mode: Mode; total: number; subject: string }) => {
     if (loggedRef.current) return; // اتسجلت خلاص — متسجلش تاني
     loggedRef.current = true;
+    const effMode = override?.mode ?? mode;
+    const effTotal = override?.total ?? total;
+    const effSubject = override?.subject ?? subject;
     setRunning(false); setFinished(true); deadlineRef.current = null;
     localStorage.removeItem(STORAGE_KEY);
-    const minutes = Math.round(total / 60);
+    const minutes = Math.round(effTotal / 60);
     // عدّاد جلسات المؤقت بيحسب التركيز والمخصص بس — الاستراحات مش جلسات مذاكرة.
-    if (mode === 'focus' || mode === 'custom') {
+    if (effMode === 'focus' || effMode === 'custom') {
       try {
         const log = JSON.parse(localStorage.getItem(LOG_KEY) ?? '[]') as { date: string; minutes: number; mode: string; subject: string }[];
-        log.push({ date: todayKey(), minutes, mode, subject });
+        log.push({ date: todayKey(), minutes, mode: effMode, subject: effSubject });
         localStorage.setItem(LOG_KEY, JSON.stringify(log));
       } catch { /* التسجيل محلي فقط */ }
     }
     setToday(loadTodayMinutes());
     // جلسة التركيز (مش الاستراحة) بتتسجل كمان في سجل المذاكرة عشان تظهر في الرئيسية والسجل.
-    if (mode === 'focus' || mode === 'custom') {
-      addSession({ subject: subject.trim() || (locale === 'ar' ? 'مذاكرة' : 'Study'), hours: Math.round((total / 3600) * 100) / 100, type: sessionType, notes: locale === 'ar' ? `مؤقت ${minutes} دقيقة` : `Timer ${minutes} min` });
+    if (effMode === 'focus' || effMode === 'custom') {
+      addSession({ subject: effSubject.trim() || t('timer.generalSubject'), hours: Math.round((effTotal / 3600) * 100) / 100, type: sessionType, notes: locale === 'ar' ? `مؤقت ${minutes} دقيقة` : `Timer ${minutes} min` });
     }
     beep();
-    if (mode === 'focus') confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 }, colors: ['#ff6b5f', '#70d6b0', '#19213a'] });
-    void showNotification('Days and Life', mode === 'focus' ? `${t('timer.focusDoneNotif')} ${minutes} ${locale === 'ar' ? 'دقيقة' : 'min'} 👏` : t('timer.breakDoneNotif'));
+    if (effMode === 'focus') confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 }, colors: ['#ff6b5f', '#70d6b0', '#19213a'] });
+    void showNotification('Days and Life', effMode === 'focus' ? `${t('timer.focusDoneNotif')} ${minutes} ${locale === 'ar' ? 'دقيقة' : 'min'} 👏` : t('timer.breakDoneNotif'));
   }, [mode, sessionType, subject, total, t, locale]);
 
   // لو المؤقت خلص والتطبيق كان مقفول، نفّذ finish() بعد ما الحالة (الوضع والمدة والمادة) تتطبق.
   useEffect(() => {
     if (restoreFinishRef.current) {
       restoreFinishRef.current = false;
-      finish();
+      const payload = restorePayloadRef.current;
+      restorePayloadRef.current = null;
+      finish(payload ?? undefined);
     }
   }, [finish]);
 
@@ -212,7 +223,7 @@ export function StudyTimer() {
           <span className="relative flex items-center gap-1.5">
             {t('timer.custom')}
             <input className="w-12 bg-transparent text-center font-black outline-none" type="number" min={1} max={180} value={customMinutes}
-              onChange={(e) => { const v = Math.max(1, Math.min(180, Number(e.target.value) || 1)); setCustomMinutes(v); pickMode('custom', v); }} />
+              onChange={(e) => { const v = Math.max(1, Math.min(180, Number(e.target.value) || 1)); setCustomMinutes(v); if (!running) pickMode('custom', v); }} />
             {t('timer.min')}
           </span>
         </label>
@@ -246,7 +257,7 @@ export function StudyTimer() {
               : <button type="button" disabled={finished && remaining === 0} className="flex flex-1 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-coral to-amber-500 py-3 font-black text-white shadow-lg shadow-coral/30 transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-40" onClick={start}><Play size={18} />{remaining < total ? t('timer.resume') : t('timer.start')}</button>}
             <button type="button" className="rounded-full border border-slate-200 bg-white/70 p-3 text-slate-500 transition hover:bg-white dark:border-slate-700 dark:bg-slate-800" onClick={reset} aria-label={t('timer.reset')}><RotateCcw size={18} /></button>
           </div>
-          {finished && <p className="rounded-2xl bg-emerald-50 px-3 py-2 text-center text-sm font-semibold text-emerald-600 dark:bg-emerald-950/50">{locale === 'ar' ? `خلصت الجلسة 👏 اتسجلت في يومك: ${Math.round(total / 60)} دقيقة.` : `Session done 👏 Added to your day: ${Math.round(total / 60)} min.`}</p>}
+          {finished && <p className="rounded-2xl bg-emerald-50 px-3 py-2 text-center text-sm font-semibold text-emerald-600 dark:bg-emerald-950/50">{mode === 'focus' || mode === 'custom' ? (locale === 'ar' ? `خلصت الجلسة 👏 اتسجلت في يومك: ${Math.round(total / 60)} دقيقة.` : `Session done 👏 Added to your day: ${Math.round(total / 60)} min.`) : t('timer.breakFinished')}</p>}
           <div className="flex flex-wrap items-center justify-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700"><Play size={13} className="text-coral" />{today.sessions} {t('today.sessionsWord')}</span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700"><Clock3 size={13} className="text-coral" />{today.minutes} {t('timer.minutesShort')}</span>

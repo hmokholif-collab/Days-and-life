@@ -70,12 +70,15 @@ export function mergePlans(incoming: unknown): number {
   return valid.length;
 }
 
-// دمج علامات الإنجاز من نسخة احتياطية — بيتخطى العلامات الموجودة أصلاً.
+// دمج علامات الإنجاز من نسخة احتياطية — بيتخطى العلامات الموجودة أصلاً،
+// وبيتجاهل علامات خطط مش موجودة على الجهاز (عشان متفضلش يتيمة في التخزين).
 export function mergeChecks(incoming: unknown): number {
   if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) return 0;
+  const existingPlanIds = new Set(loadPlans().map((p) => p.id));
   const checks = loadChecks();
   let added = 0;
   for (const [planId, days] of Object.entries(incoming as Record<string, unknown>)) {
+    if (!existingPlanIds.has(planId)) continue;
     if (!days || typeof days !== 'object' || Array.isArray(days)) continue;
     const target = { ...(checks[planId] ?? {}) };
     for (const [iso, value] of Object.entries(days as Record<string, unknown>)) {
