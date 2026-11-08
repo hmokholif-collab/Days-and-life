@@ -180,7 +180,10 @@ export async function syncSessions(): Promise<'synced' | 'local-only' | 'table-m
 
 function isMissingTableError(error: { code?: string; message?: string }): boolean {
   // PostgREST: 42P01 = undefined_table — الجدول مش موجود (الـ migration متنفذش).
-  return error.code === '42P01' || (error.message ?? '').includes('does not exist');
+  // PGRST205 = "Could not find the table ... in the schema cache" — نفس المعنى من PostgREST،
+  // وهو اللي بيرجع فعلًا لما الجدول مش موجود؛ من غيره الفحص كان بيقع في فرع "تعذّر التحقق".
+  const message = error.message ?? '';
+  return error.code === '42P01' || error.code === 'PGRST205' || message.includes('does not exist') || message.includes('Could not find the table');
 }
 
 export async function getSyncStatus(): Promise<{ configured: boolean; signedIn: boolean; email?: string; tableOk?: boolean; tableMissing?: boolean }> {
