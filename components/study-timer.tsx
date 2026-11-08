@@ -55,6 +55,8 @@ export function StudyTimer() {
   const deadlineRef = useRef<number | null>(null);
   // حارس ضد تسجيل الجلسة مرتين: finish() بتتنفذ مرة واحدة بس لكل جلسة.
   const loggedRef = useRef(false);
+  // لو المؤقت خلص والتطبيق كان مقفول، الجلسة بتتسجل أول ما الصفحة تفتح.
+  const restoreFinishRef = useRef(false);
 
   // بدء جلسة من نموذج «جلسة جديدة»: ييجي بالمادة والمدة والتصنيف، والمؤقت يشتغل على طول.
   useEffect(() => {
@@ -94,6 +96,12 @@ export function StudyTimer() {
         setMode(saved.mode); setTotal(saved.total); setSubject(saved.subject ?? '');
         setRemaining(Math.ceil((saved.deadline - Date.now()) / 1000));
         deadlineRef.current = saved.deadline; setRunning(true);
+      } else if (saved.deadline && saved.deadline <= Date.now()) {
+        // المؤقت خلص والتطبيق كان مقفول — الجلسة متضيعش، بتتسجل أول ما الصفحة تفتح.
+        setMode(saved.mode); setTotal(saved.total); setSubject(saved.subject ?? '');
+        setRemaining(0); setFinished(true);
+        loggedRef.current = false;
+        restoreFinishRef.current = true;
       }
     } catch { /* تجاهل بيانات تالفة */ }
   }, []);
@@ -104,11 +112,14 @@ export function StudyTimer() {
     setRunning(false); setFinished(true); deadlineRef.current = null;
     localStorage.removeItem(STORAGE_KEY);
     const minutes = Math.round(total / 60);
-    try {
-      const log = JSON.parse(localStorage.getItem(LOG_KEY) ?? '[]') as { date: string; minutes: number; mode: string; subject: string }[];
-      log.push({ date: todayKey(), minutes, mode, subject });
-      localStorage.setItem(LOG_KEY, JSON.stringify(log));
-    } catch { /* التسجيل محلي فقط */ }
+    // عدّاد جلسات المؤقت بيحسب التركيز والمخصص بس — الاستراحات مش جلسات مذاكرة.
+    if (mode === 'focus' || mode === 'custom') {
+      try {
+        const log = JSON.parse(localStorage.getItem(LOG_KEY) ?? '[]') as { date: string; minutes: number; mode: string; subject: string }[];
+        log.push({ date: todayKey(), minutes, mode, subject });
+        localStorage.setItem(LOG_KEY, JSON.stringify(log));
+      } catch { /* التسجيل محلي فقط */ }
+    }
     setToday(loadTodayMinutes());
     // جلسة التركيز (مش الاستراحة) بتتسجل كمان في سجل المذاكرة عشان تظهر في الرئيسية والسجل.
     if (mode === 'focus' || mode === 'custom') {
@@ -118,6 +129,14 @@ export function StudyTimer() {
     if (mode === 'focus') confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 }, colors: ['#ff6b5f', '#70d6b0', '#19213a'] });
     void showNotification('Days and Life', mode === 'focus' ? `${t('timer.focusDoneNotif')} ${minutes} ${locale === 'ar' ? 'دقيقة' : 'min'} 👏` : t('timer.breakDoneNotif'));
   }, [mode, sessionType, subject, total, t, locale]);
+
+  // لو المؤقت خلص والتطبيق كان مقفول، نفّذ finish() بعد ما الحالة (الوضع والمدة والمادة) تتطبق.
+  useEffect(() => {
+    if (restoreFinishRef.current) {
+      restoreFinishRef.current = false;
+      finish();
+    }
+  }, [finish]);
 
   useEffect(() => {
     if (!running || deadlineRef.current === null) return;
@@ -138,6 +157,8 @@ export function StudyTimer() {
   }, [remaining, running]);
 
   function pickMode(id: Mode, minutes: number) {
+    // تغيير الوضع والمؤقت شغال بيلغي الجلسة — لازم تأكيد الأول.
+    if (running && !window.confirm(t('timer.changeModeConfirm'))) return;
     setMode(id); setTotal(minutes * 60); setRemaining(minutes * 60);
     setRunning(false); setFinished(false); deadlineRef.current = null; loggedRef.current = false;
     localStorage.removeItem(STORAGE_KEY);

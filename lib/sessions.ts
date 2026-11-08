@@ -136,6 +136,59 @@ export function deleteSession(id: string) {
   syncInBackground('delete', id);
 }
 
+// تعديل جلسة من السجل (من غير حذف وإعادة إدخال) — ولو اتغير اسم المادة، الخطة المرتبطة بتتحدث.
+export function updateSession(id: string, patch: { subject: string; hours: number; type: SessionType; notes: string }): StudySession | null {
+  const sessions = loadSessions();
+  const idx = sessions.findIndex((s) => s.id === id);
+  if (idx === -1) return null;
+  const old = sessions[idx];
+  const updated: StudySession = {
+    ...old,
+    subject: patch.subject.trim(),
+    hours: patch.hours,
+    type: patch.type,
+    notes: patch.notes,
+    planId: patch.subject.trim() === old.subject.trim() ? old.planId : findPlanIdForSubject(patch.subject),
+  };
+  sessions[idx] = updated;
+  save(sessions);
+  syncInBackground('push', updated);
+  return updated;
+}
+
+// مسح الجلسات التجريبية بس (من السجل والإحصائيات) — من غير ما يمس الجلسات الحقيقية.
+export function clearDemoSessions(): void {
+  save(loadSessions().filter((s) => !isDemoSession(s)));
+}
+
+// دمج جلسات من نسخة احتياطية — بيتخطى اللي موجود أصلاً (بنفس الـ id) وبيتجاهل الصفوف التالفة.
+export function mergeSessions(incoming: unknown): number {
+  if (!Array.isArray(incoming)) return 0;
+  const existing = loadSessions();
+  const ids = new Set(existing.map((s) => s.id));
+  const valid: StudySession[] = [];
+  for (const raw of incoming as Record<string, unknown>[]) {
+    if (!raw || typeof raw !== 'object') continue;
+    if (typeof raw.id !== 'string' || !raw.id || ids.has(raw.id)) continue;
+    if (typeof raw.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(raw.date)) continue;
+    if (typeof raw.subject !== 'string' || !raw.subject.trim()) continue;
+    if (typeof raw.hours !== 'number' || !Number.isFinite(raw.hours) || raw.hours <= 0 || raw.hours > 24) continue;
+    if (raw.type !== 'مذاكرة' && raw.type !== 'واجب' && raw.type !== 'مراجعة') continue;
+    valid.push({ id: raw.id, date: raw.date, subject: raw.subject.trim(), hours: raw.hours, type: raw.type, notes: typeof raw.notes === 'string' ? raw.notes : '', demo: raw.demo === true ? true : undefined, planId: typeof raw.planId === 'string' ? raw.planId : undefined });
+    ids.add(raw.id);
+  }
+  if (valid.length > 0) {
+    save([...valid, ...existing]);
+    for (const s of valid) if (!isDemoSession(s)) syncInBackground('push', s);
+  }
+  return valid.length;
+}
+
+// تاريخ النهاردة بتوقيت القاهرة، للعرض في رأس الصفحة.
+export function formatCairoDate(locale: 'ar' | 'en' = 'ar'): string {
+  return new Intl.DateTimeFormat(locale === 'ar' ? 'ar-EG' : 'en-US', { timeZone: 'Africa/Cairo', weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
+}
+
 export function todaySessions(): StudySession[] {
   const today = todayISO(0);
   return loadSessions().filter((s) => s.date === today);
@@ -213,6 +266,7 @@ export function dailyAverageThisMonth(): number {
 }
 
 // أطول سلسلة أيام متتالية فيها جلسات، من كل التاريخ.
+// كل التواريخ بتوقيت القاهرة — toISOString (UTC) كان ممكن يكسر السلسلة بعد نص الليل.
 export function longestStreak(): number {
   const dates = new Set(loadSessions().map((s) => s.date));
   let best = 0;
@@ -220,10 +274,10 @@ export function longestStreak(): number {
     const d = new Date(`${iso}T12:00:00`);
     const prev = new Date(d);
     prev.setDate(prev.getDate() - 1);
-    if (dates.has(prev.toISOString().slice(0, 10))) continue; // مش بداية سلسلة
+    if (dates.has(cairoISOFromDate(prev))) continue; // مش بداية سلسلة
     let len = 0;
     const cursor = new Date(d);
-    while (dates.has(cursor.toISOString().slice(0, 10))) { len++; cursor.setDate(cursor.getDate() + 1); }
+    while (dates.has(cairoISOFromDate(cursor))) { len++; cursor.setDate(cursor.getDate() + 1); }
     if (len > best) best = len;
   }
   return best;

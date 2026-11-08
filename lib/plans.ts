@@ -42,6 +42,51 @@ export function addPlan(input: { subject: string; dailyTarget?: number; weeklyTa
   return plan;
 }
 
+// هل فيه خطة لمادة بالاسم ده أصلاً؟ (مقارنة بعد إزالة المسافات وتجاهل حالة الحروف)
+export function planExists(subject: string, excludeId?: string): boolean {
+  const name = subject.trim().toLowerCase();
+  if (!name) return false;
+  return loadPlans().some((p) => p.id !== excludeId && p.subject.trim().toLowerCase() === name);
+}
+
+// دمج خطط من نسخة احتياطية — بيتخطى المكرر بالـ id أو بالاسم.
+export function mergePlans(incoming: unknown): number {
+  if (!Array.isArray(incoming)) return 0;
+  const existing = loadPlans();
+  const ids = new Set(existing.map((p) => p.id));
+  const names = new Set(existing.map((p) => p.subject.trim().toLowerCase()));
+  const valid: PlanItem[] = [];
+  for (const raw of incoming as Record<string, unknown>[]) {
+    if (!raw || typeof raw !== 'object') continue;
+    if (typeof raw.id !== 'string' || !raw.id || ids.has(raw.id)) continue;
+    if (typeof raw.subject !== 'string' || !raw.subject.trim()) continue;
+    const name = raw.subject.trim().toLowerCase();
+    if (names.has(name)) continue;
+    valid.push({ id: raw.id, subject: raw.subject.trim(), dailyTarget: typeof raw.dailyTarget === 'number' && raw.dailyTarget > 0 ? raw.dailyTarget : undefined, weeklyTarget: typeof raw.weeklyTarget === 'number' && raw.weeklyTarget > 0 ? raw.weeklyTarget : undefined, createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : Date.now() });
+    ids.add(raw.id);
+    names.add(name);
+  }
+  if (valid.length > 0) save([...existing, ...valid]);
+  return valid.length;
+}
+
+// دمج علامات الإنجاز من نسخة احتياطية — بيتخطى العلامات الموجودة أصلاً.
+export function mergeChecks(incoming: unknown): number {
+  if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) return 0;
+  const checks = loadChecks();
+  let added = 0;
+  for (const [planId, days] of Object.entries(incoming as Record<string, unknown>)) {
+    if (!days || typeof days !== 'object' || Array.isArray(days)) continue;
+    const target = { ...(checks[planId] ?? {}) };
+    for (const [iso, value] of Object.entries(days as Record<string, unknown>)) {
+      if (value === true && !target[iso] && /^\d{4}-\d{2}-\d{2}$/.test(iso)) { target[iso] = true; added++; }
+    }
+    if (Object.keys(target).length > 0) checks[planId] = target;
+  }
+  if (added > 0) saveChecks(checks);
+  return added;
+}
+
 export function updatePlan(id: string, input: { subject: string; dailyTarget?: number; weeklyTarget?: number }) {
   save(loadPlans().map((p) => (p.id === id ? { ...p, subject: input.subject.trim(), dailyTarget: input.dailyTarget, weeklyTarget: input.weeklyTarget } : p)));
 }
