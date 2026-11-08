@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Check, Plus, Trash2 } from 'lucide-react';
@@ -135,6 +136,7 @@ export default function Plan() {
     <div className="mx-auto max-w-6xl p-5 md:p-10">
       <h1 className="text-3xl font-black">{t('plan.title')}</h1>
       <p className="mt-2 text-slate-500">{t('plan.subtitle')}</p>
+      <Link href="/dashboard#coach" className="mt-3 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-coral to-amber-500 px-4 py-2 text-sm font-bold text-white shadow-sm">✦ {t('coach.title')}</Link>
       {dupMsg && <p className="mt-2 text-sm font-semibold text-red-500">{t('plan.duplicate')}</p>}
       <p className="mt-1 text-sm text-slate-500">{formatDateAr(week[0].iso, locale)} – {formatDateAr(week[6].iso, locale)}</p>
 
