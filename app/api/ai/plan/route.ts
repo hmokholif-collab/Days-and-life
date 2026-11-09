@@ -113,7 +113,7 @@ export async function POST(request: Request) {
   const fallback = builtinAdvice(data);
 
   const apiKey = process.env.GROK_API_KEY;
-  if (!apiKey) return NextResponse.json({ advice: fallback, source: 'built-in' as const });
+  if (!apiKey) return NextResponse.json({ advice: fallback, source: 'built-in' as const, reason: 'no-key' as const });
 
   try {
     const controller = new AbortController();
@@ -144,6 +144,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ advice, source: 'grok' as const });
   } catch {
     // أي فشل في Grok (نت، مفتاح غلط، مهلة) → النصيحة الجاهزة، مش خطأ للمستخدم.
-    return NextResponse.json({ advice: fallback, source: 'built-in' as const });
+    // السبب بيرجع للواجهة عشان الملاحظة تبقى صادقة: المفتاح موجود بس Grok مردّش.
+    return NextResponse.json({ advice: fallback, source: 'built-in' as const, reason: 'grok-error' as const });
   }
 }

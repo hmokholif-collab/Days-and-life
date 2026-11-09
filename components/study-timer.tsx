@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { BellRing, Clock3, Pause, Play, RotateCcw, Timer } from 'lucide-react';
 import { addSession, cairoISOFromDate, type SessionType } from '@/lib/sessions';
-import { useLanguage, type DictKey } from '@/lib/i18n';
+import { typeLabel, useLanguage, type DictKey } from '@/lib/i18n';
 import { getNotificationState, requestNotificationPermission, showNotification, type NotifState } from '@/lib/notifications';
 
 type Mode = 'focus' | 'short' | 'long' | 'custom';
@@ -13,6 +13,7 @@ const MODES: { id: Mode; labelKey: DictKey; minutes: number }[] = [
   { id: 'short', labelKey: 'timer.shortBreak', minutes: 5 },
   { id: 'long', labelKey: 'timer.longBreak', minutes: 15 },
 ];
+const TYPES: SessionType[] = ['مذاكرة', 'واجب', 'مراجعة'];
 const STORAGE_KEY = 'days-life-timer';
 const LOG_KEY = 'days-life-timer-sessions';
 
@@ -28,6 +29,8 @@ function beep() {
   try {
     const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const ctx = new Ctx();
+    // الصوت ممكن يتكتم لو الـ context لسه متوقف — لازم resume الأول.
+    void ctx.resume();
     [0, 0.35, 0.7].forEach((delay) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -59,7 +62,7 @@ export function StudyTimer() {
   const restoreFinishRef = useRef(false);
   // بيانات الجلسة اللي خلصت والتطبيق مقفول — بتتاخد من التخزين مش من الحالة،
   // عشان حالة المكوّن لسه متطبقتش أول ما الصفحة تفتح (فكانت بتتسجل 25 دقيقة/تركيز غلط).
-  const restorePayloadRef = useRef<{ mode: Mode; total: number; subject: string } | null>(null);
+  const restorePayloadRef = useRef<{ mode: Mode; total: number; subject: string; sessionType: SessionType } | null>(null);
 
   // بدء جلسة من نموذج «جلسة جديدة»: ييجي بالمادة والمدة والتصنيف، والمؤقت يشتغل على طول.
   useEffect(() => {
@@ -76,7 +79,7 @@ export function StudyTimer() {
       loggedRef.current = false;
       const deadline = Date.now() + minutes * 60 * 1000;
       deadlineRef.current = deadline; setRunning(true);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ deadline, total: minutes * 60, mode: 'custom', subject: subj }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ deadline, total: minutes * 60, mode: 'custom', subject: subj, sessionType: d.type ?? 'مذاكرة' }));
       document.getElementById('study-timer')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     };
     window.addEventListener('days-life:start-session', onStart);
@@ -87,37 +90,41 @@ export function StudyTimer() {
   // استرجاع مؤقت كان شغال قبل ما الصفحة تتقفل — أو موقوف (بيحافظ على الوقت المتبقي من غير ما يكمل لوحده).
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as { deadline?: number; remaining?: number; total: number; mode: Mode; subject: string; paused?: boolean } | null;
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as { deadline?: number; remaining?: number; total: number; mode: Mode; subject: string; sessionType?: SessionType; paused?: boolean } | null;
       if (!saved) return;
       if (saved.paused) {
         setMode(saved.mode); setTotal(saved.total); setSubject(saved.subject ?? '');
+        setSessionType(saved.sessionType ?? 'مذاكرة');
         setRemaining(Math.max(0, saved.remaining ?? saved.total));
         setRunning(false);
         return;
       }
       if (saved.deadline && saved.deadline > Date.now()) {
         setMode(saved.mode); setTotal(saved.total); setSubject(saved.subject ?? '');
+        setSessionType(saved.sessionType ?? 'مذاكرة');
         setRemaining(Math.ceil((saved.deadline - Date.now()) / 1000));
         deadlineRef.current = saved.deadline; setRunning(true);
       } else if (saved.deadline && saved.deadline <= Date.now()) {
         // المؤقت خلص والتطبيق كان مقفول — الجلسة متضيعش، بتتسجل أول ما الصفحة تفتح.
         setMode(saved.mode); setTotal(saved.total); setSubject(saved.subject ?? '');
+        setSessionType(saved.sessionType ?? 'مذاكرة');
         setRemaining(0); setFinished(true);
         loggedRef.current = false;
         restoreFinishRef.current = true;
-        restorePayloadRef.current = { mode: saved.mode, total: saved.total, subject: saved.subject ?? '' };
+        restorePayloadRef.current = { mode: saved.mode, total: saved.total, subject: saved.subject ?? '', sessionType: saved.sessionType ?? 'مذاكرة' };
       }
     } catch { /* تجاهل بيانات تالفة */ }
   }, []);
 
   // override: بيانات الجلسة من التخزين (لما المؤقت يخلص والتطبيق مقفول) —
   // من غيرها finish() كانت بتقرا الحالة الأولية (25 دقيقة/تركيز) وتسجّل غلط.
-  const finish = useCallback((override?: { mode: Mode; total: number; subject: string }) => {
+  const finish = useCallback((override?: { mode: Mode; total: number; subject: string; sessionType?: SessionType }) => {
     if (loggedRef.current) return; // اتسجلت خلاص — متسجلش تاني
     loggedRef.current = true;
     const effMode = override?.mode ?? mode;
     const effTotal = override?.total ?? total;
     const effSubject = override?.subject ?? subject;
+    const effType = override?.sessionType ?? sessionType;
     setRunning(false); setFinished(true); deadlineRef.current = null;
     localStorage.removeItem(STORAGE_KEY);
     const minutes = Math.round(effTotal / 60);
@@ -132,7 +139,7 @@ export function StudyTimer() {
     setToday(loadTodayMinutes());
     // جلسة التركيز (مش الاستراحة) بتتسجل كمان في سجل المذاكرة عشان تظهر في الرئيسية والسجل.
     if (effMode === 'focus' || effMode === 'custom') {
-      addSession({ subject: effSubject.trim() || t('timer.generalSubject'), hours: Math.round((effTotal / 3600) * 100) / 100, type: sessionType, notes: locale === 'ar' ? `مؤقت ${minutes} دقيقة` : `Timer ${minutes} min` });
+      addSession({ subject: effSubject.trim() || t('timer.generalSubject'), hours: Math.round((effTotal / 3600) * 100) / 100, type: effType, notes: locale === 'ar' ? `مؤقت ${minutes} دقيقة` : `Timer ${minutes} min` });
     }
     beep();
     if (effMode === 'focus') confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 }, colors: ['#ff6b5f', '#70d6b0', '#19213a'] });
@@ -178,12 +185,12 @@ export function StudyTimer() {
     if (remaining <= 0) return; // الجلسة خلصت واتسجلت — لازم "إعادة تعيين" الأول عشان متتسجلش تاني
     const deadline = Date.now() + remaining * 1000;
     deadlineRef.current = deadline; setRunning(true); setFinished(false);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ deadline, total, mode, subject }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ deadline, total, mode, subject, sessionType }));
   }
   // الإيقاف المؤقت بيحفظ الوقت المتبقي — لو قفل الصفحة وهو موقف، الوقت مش بيضيع.
   function pause() {
     setRunning(false); deadlineRef.current = null;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ remaining, total, mode, subject, paused: true }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ remaining, total, mode, subject, sessionType, paused: true }));
   }
   function reset() { setRunning(false); deadlineRef.current = null; loggedRef.current = false; localStorage.removeItem(STORAGE_KEY); setRemaining(total); setFinished(false); }
 
@@ -251,6 +258,19 @@ export function StudyTimer() {
 
         <div className="mt-6 w-full max-w-xs space-y-3">
           <input className="input !rounded-full text-center" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={t('timer.subjectPlaceholder')} />
+          <div className="flex justify-center gap-1.5" role="group" aria-label={t('timer.typeLabel')}>
+            {TYPES.map((ty) => (
+              <button
+                key={ty}
+                type="button"
+                onClick={() => setSessionType(ty)}
+                aria-pressed={sessionType === ty}
+                className={`rounded-full px-4 py-1.5 text-sm font-bold transition ${sessionType === ty ? 'bg-ink text-white dark:bg-coral' : 'bg-white/80 text-slate-500 ring-1 ring-slate-200/70 hover:text-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700'}`}
+              >
+                {typeLabel(ty, locale)}
+              </button>
+            ))}
+          </div>
           <div className="flex items-center gap-2">
             {running
               ? <button type="button" className="flex flex-1 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-coral to-amber-500 py-3 font-black text-white shadow-lg shadow-coral/30 transition hover:opacity-95" onClick={pause}><Pause size={18} />{t('timer.pause')}</button>

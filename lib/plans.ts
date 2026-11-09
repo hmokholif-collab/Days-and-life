@@ -1,7 +1,7 @@
 // مخزن الخطة الأسبوعية — محلي على الجهاز (localStorage)، بنفس نمط lib/sessions.ts.
 // كل خطة = مادة + هدف يومي (ساعات) و/أو هدف أسبوعي (ساعات)؛ الأسبوع من السبت للجمعة.
 
-import { loadSessions } from '@/lib/sessions';
+import { isDemoSession, loadSessions } from '@/lib/sessions';
 
 export interface PlanItem {
   id: string;
@@ -130,8 +130,9 @@ function sessionMatchesPlan(s: { subject: string; planId?: string }, subject: st
 }
 
 export function hoursForDay(subject: string, iso: string, planId?: string): number {
+  // الجلسات التجريبية للعرض بس — مينفعش تتحسب في تقدم الخطة.
   return loadSessions()
-    .filter((s) => s.date === iso && sessionMatchesPlan(s, subject, planId))
+    .filter((s) => !isDemoSession(s) && s.date === iso && sessionMatchesPlan(s, subject, planId))
     .reduce((sum, s) => sum + s.hours, 0);
 }
 
@@ -139,7 +140,7 @@ export function hoursForDay(subject: string, iso: string, planId?: string): numb
 export function hoursForWeek(subject: string, planId?: string): number {
   const isos = new Set(weekDays().map((d) => d.iso));
   return loadSessions()
-    .filter((s) => isos.has(s.date) && sessionMatchesPlan(s, subject, planId))
+    .filter((s) => !isDemoSession(s) && isos.has(s.date) && sessionMatchesPlan(s, subject, planId))
     .reduce((sum, s) => sum + s.hours, 0);
 }
 

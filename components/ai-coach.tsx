@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
-import { currentStreak, getWeeklyGoal, isDemoSession, loadSessions, subjectTotals, weekTotalHours } from '@/lib/sessions';
+import { cairoISOFromDate, currentStreak, getWeeklyGoal, isDemoSession, loadSessions } from '@/lib/sessions';
 import { hoursForWeek, loadPlans } from '@/lib/plans';
 
 // بطاقة "المدرب الذكي" في الرئيسية — بتبعت ملخص حقيقي من بيانات الجهاز لـ /api/ai/plan
@@ -12,8 +12,22 @@ export function AiCoach() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [advice, setAdvice] = useState('');
   const [source, setSource] = useState<'grok' | 'built-in'>('built-in');
+  const [reason, setReason] = useState<'no-key' | 'grok-error' | undefined>(undefined);
 
   const realSessions = loadSessions().filter((s) => !isDemoSession(s));
+  // الأرقام اللي بتتبعت للمدرب من الجلسات الحقيقية بس — الديمو كانت بتتحسب قبل كده
+  // (weekTotalHours/subjectTotals بيعدّوا كل الجلسات)، فكانت النصيحة مبنية على ساعات مش حقيقية.
+  // الأسبوع هنا آخر 7 أيام، زي رسم الأسبوع اللي فوق البطاقة في الرئيسية.
+  const weekStart = (() => { const d = new Date(); d.setDate(d.getDate() - 6); return cairoISOFromDate(d); })();
+  const realWeekHours = Math.round(realSessions.filter((s) => s.date >= weekStart).reduce((sum, s) => sum + s.hours, 0) * 100) / 100;
+  const realTopSubject = (() => {
+    const totals = new Map<string, number>();
+    for (const s of realSessions) totals.set(s.subject, (totals.get(s.subject) ?? 0) + s.hours);
+    let best = '';
+    let bestHours = 0;
+    for (const [subject, hours] of totals) if (hours > bestHours) { best = subject; bestHours = hours; }
+    return best;
+  })();
 
   async function ask() {
     setStatus('loading');
@@ -33,20 +47,21 @@ export function AiCoach() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          weeklyHours: weekTotalHours(),
+          weeklyHours: realWeekHours,
           weeklyGoal: getWeeklyGoal(),
           streak: currentStreak(),
-          topSubject: subjectTotals()[0]?.subject ?? '',
+          topSubject: realTopSubject,
           plans,
           recent,
           locale,
         }),
       });
       if (!res.ok) throw new Error('coach request failed');
-      const data = (await res.json()) as { advice?: string; source?: 'grok' | 'built-in' };
+      const data = (await res.json()) as { advice?: string; source?: 'grok' | 'built-in'; reason?: 'no-key' | 'grok-error' };
       if (!data.advice) throw new Error('empty advice');
       setAdvice(data.advice);
       setSource(data.source === 'grok' ? 'grok' : 'built-in');
+      setReason(data.source === 'grok' ? undefined : data.reason);
       setStatus('done');
     } catch {
       setStatus('error');
@@ -77,7 +92,10 @@ export function AiCoach() {
             </span>
           </div>
           <p className="mt-3 whitespace-pre-line leading-relaxed text-slate-700 dark:text-slate-200">{advice}</p>
-          {source === 'built-in' && (
+          {source === 'built-in' && reason === 'grok-error' && (
+            <p className="mt-3 rounded-2xl bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-700 dark:bg-amber-950/50 dark:text-amber-300">{t('coach.grokErrorNote')}</p>
+          )}
+          {source === 'built-in' && reason !== 'grok-error' && (
             <p className="mt-3 rounded-2xl bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-700 dark:bg-amber-950/50 dark:text-amber-300">{t('coach.builtinNote')}</p>
           )}
         </div>

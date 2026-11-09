@@ -232,6 +232,8 @@ const dict = {
     'coach.grokBadge': 'نصيحة من Grok',
     'coach.builtinBadge': 'نصيحة جاهزة',
     'coach.noData': 'لسه مفيش جلسات حقيقية — سجّل أول جلسة وبعدين اسأل المدرب.',
+    'coach.grokErrorNote': 'المفتاح موجود بس Grok مردّش دلوقتي — اتأكد إن المفتاح صح وإن فيه رصيد، وحاول تاني.',
+    'timer.typeLabel': 'نوع الجلسة',
   },
   en: {
     'nav.dashboard': 'Dashboard',
@@ -458,6 +460,8 @@ const dict = {
     'coach.grokBadge': 'Advice from Grok',
     'coach.builtinBadge': 'Built-in advice',
     'coach.noData': 'No real sessions yet — log your first session, then ask the coach.',
+    'coach.grokErrorNote': 'The key is set but Grok did not answer — check that the key is correct and has credit, then try again.',
+    'timer.typeLabel': 'Session type',
   },
 } as const;
 

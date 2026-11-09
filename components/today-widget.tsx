@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Check, Flame, Play, Timer } from 'lucide-react';
-import { SESSIONS_EVENT, cairoISOFromDate, currentStreak, formatHours, todayHours, todaySessions, type StudySession } from '@/lib/sessions';
+import { SESSIONS_EVENT, cairoISOFromDate, currentStreak, formatCairoDate, formatHours, todayHours, todaySessions, type StudySession } from '@/lib/sessions';
 import { PLANS_EVENT, hoursForDay, isChecked, loadPlans, toggleCheck, type PlanItem } from '@/lib/plans';
 import { typeLabel, useLanguage } from '@/lib/i18n';
 
@@ -52,7 +52,7 @@ export function TodayWidget({ detailed = false }: { detailed?: boolean }) {
     <div className="relative overflow-hidden rounded-[2rem] border border-slate-200/70 bg-gradient-to-br from-white via-[#fff8f6] to-[#eefdf6] p-5 shadow-[0_16px_50px_rgb(0,0,0,0.06)] dark:border-slate-800 dark:bg-slate-900 dark:bg-none sm:p-6">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="text-sm text-slate-500">{new Date().toLocaleDateString(locale === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+          <p className="text-sm text-slate-500">{formatCairoDate(locale)}</p>
           <h2 className="mt-1 text-2xl font-black">{t('today.title')}</h2>
         </div>
         <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-orange-100 px-3 py-1.5 text-sm font-black text-orange-600 dark:bg-orange-950/60 dark:text-orange-300"><Flame size={16} />{streak}</span>

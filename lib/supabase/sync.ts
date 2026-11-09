@@ -189,12 +189,19 @@ function isMissingTableError(error: { code?: string; message?: string }): boolea
 export async function getSyncStatus(): Promise<{ configured: boolean; signedIn: boolean; email?: string; tableOk?: boolean; tableMissing?: boolean }> {
   const supabase = getClientOrNull();
   if (!supabase) return { configured: false, signedIn: false };
+  // خطوة 1: تسجيل الدخول — لو دي نفسها فشلت، حالة الدخول مجهولة.
+  let email: string | undefined;
   try {
     const { data } = await supabase.auth.getUser();
     if (!data.user) return { configured: true, signedIn: false };
-    // فحص حقيقي: هل جدول study_sessions موجود فعلًا؟ مش كفاية إنك مسجّل دخول.
-    const { error } = await supabase.from('study_sessions').select('id').limit(1);
-    if (error) return { configured: true, signedIn: true, email: data.user.email, tableOk: false, tableMissing: isMissingTableError(error) };
-    return { configured: true, signedIn: true, email: data.user.email, tableOk: true };
+    email = data.user.email;
   } catch { return { configured: true, signedIn: false }; }
+  // خطوة 2: فحص حقيقي — هل جدول study_sessions موجود فعلًا؟ مش كفاية إنك مسجّل دخول.
+  // لو الفحص نفسه رمى خطأ (مثلاً النت قاطع)، المستخدم لسه مسجّل دخول — منرجّعش "مش مسجّل دخول"
+  // غلط زي قبل كده؛ بنرجّع tableOk: false فالإعدادات تعرض "تعذّر التحقق" الصادقة.
+  try {
+    const { error } = await supabase.from('study_sessions').select('id').limit(1);
+    if (error) return { configured: true, signedIn: true, email, tableOk: false, tableMissing: isMissingTableError(error) };
+    return { configured: true, signedIn: true, email, tableOk: true };
+  } catch { return { configured: true, signedIn: true, email, tableOk: false, tableMissing: false }; }
 }
