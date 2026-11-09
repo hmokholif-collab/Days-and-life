@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 
-// مدرب الدراسة — بيبعت ملخص حقيقي من بيانات المستخدم لـ Grok وبيرجع نصيحة.
-// مفتاح Grok من process.env بس (server-side) — عمره ما بيطلع للعميل ولا بيتسجل في أي لوج.
+// مدرب الدراسة — بيبعت ملخص حقيقي من بيانات المستخدم لـ Groq وبيرجع نصيحة.
+// مفتاح Groq من process.env بس (server-side) — عمره ما بيطلع للعميل ولا بيتسجل في أي لوج.
 // لو مفيش مفتاح أو النداء فشل لأي سبب، بيرجع نصيحة جاهزة من البيانات نفسها، مش خطأ 500.
 
-const GROK_URL = 'https://api.x.ai/v1/chat/completions';
-const GROK_MODEL = 'grok-3-mini';
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_MODEL = 'llama-3.3-70b-versatile';
 
 type PlanSummary = { subject: string; dailyTarget?: number; weeklyTarget?: number; weekHours?: number };
 type SessionSummary = { subject: string; hours: number; date: string; type: string };
@@ -81,13 +81,13 @@ function builtinAdvice(d: CoachInput): string {
   return advice;
 }
 
-function grokSystemPrompt(locale: 'ar' | 'en'): string {
+function groqSystemPrompt(locale: 'ar' | 'en'): string {
   return locale === 'en'
     ? 'You are a friendly, practical study coach inside a study-tracking app. Reply in English. Give 2-3 short, practical suggestions based only on the numbers given. Keep the whole reply under 80 words. Be encouraging and concrete, no generic fluff, no markdown headings.'
     : 'أنت مدرب مذاكرة ودود وعملي داخل تطبيق لتتبع المذاكرة. رد بالعربية (مصري مبسط). أعطِ 2-3 اقتراحات قصيرة وعملية مبنية على الأرقام المعطاة فقط. اجعل الرد كله أقل من 80 كلمة. كن مشجعًا ومحددًا، بدون كلام عام، وبدون عناوين ماركداون.';
 }
 
-function grokUserPrompt(d: CoachInput): string {
+function groqUserPrompt(d: CoachInput): string {
   const plansLine = d.plans.length === 0
     ? (d.locale === 'en' ? 'No weekly plans set.' : 'لا توجد خطط أسبوعية.')
     : d.plans.map((p) => {
@@ -112,7 +112,7 @@ export async function POST(request: Request) {
   const data = parseInput(body);
   const fallback = builtinAdvice(data);
 
-  const apiKey = process.env.GROK_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return NextResponse.json({ advice: fallback, source: 'built-in' as const, reason: 'no-key' as const });
 
   try {
@@ -120,14 +120,14 @@ export async function POST(request: Request) {
     const timeout = setTimeout(() => controller.abort(), 20000);
     let res: Response;
     try {
-      res = await fetch(GROK_URL, {
+      res = await fetch(GROQ_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
-          model: GROK_MODEL,
+          model: GROQ_MODEL,
           messages: [
-            { role: 'system', content: grokSystemPrompt(data.locale) },
-            { role: 'user', content: grokUserPrompt(data) },
+            { role: 'system', content: groqSystemPrompt(data.locale) },
+            { role: 'user', content: groqUserPrompt(data) },
           ],
           temperature: 0.7,
           max_tokens: 400,
@@ -137,14 +137,14 @@ export async function POST(request: Request) {
     } finally {
       clearTimeout(timeout);
     }
-    if (!res.ok) throw new Error('Grok request failed');
+    if (!res.ok) throw new Error('Groq request failed');
     const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
     const advice = json?.choices?.[0]?.message?.content?.trim();
-    if (!advice) throw new Error('Empty Grok response');
-    return NextResponse.json({ advice, source: 'grok' as const });
+    if (!advice) throw new Error('Empty Groq response');
+    return NextResponse.json({ advice, source: 'groq' as const });
   } catch {
-    // أي فشل في Grok (نت، مفتاح غلط، مهلة) → النصيحة الجاهزة، مش خطأ للمستخدم.
-    // السبب بيرجع للواجهة عشان الملاحظة تبقى صادقة: المفتاح موجود بس Grok مردّش.
-    return NextResponse.json({ advice: fallback, source: 'built-in' as const, reason: 'grok-error' as const });
+    // أي فشل في Groq (نت، مفتاح غلط، مهلة) → النصيحة الجاهزة، مش خطأ للمستخدم.
+    // السبب بيرجع للواجهة عشان الملاحظة تبقى صادقة: المفتاح موجود بس Groq مردّش.
+    return NextResponse.json({ advice: fallback, source: 'built-in' as const, reason: 'groq-error' as const });
   }
 }
