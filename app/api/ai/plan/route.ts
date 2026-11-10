@@ -5,7 +5,9 @@ import { NextResponse } from 'next/server';
 // لو مفيش مفتاح أو النداء فشل لأي سبب، بيرجع نصيحة جاهزة من البيانات نفسها، مش خطأ 500.
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_MODEL = 'llama-3.3-70b-versatile';
+// Groq shut down llama-3.3-70b-versatile for free/developer tiers on 2026-08-16
+// (Enterprise only now) — its official replacement is openai/gpt-oss-120b.
+const GROQ_MODEL = 'openai/gpt-oss-120b';
 
 type PlanSummary = { subject: string; dailyTarget?: number; weeklyTarget?: number; weekHours?: number };
 type SessionSummary = { subject: string; hours: number; date: string; type: string };
@@ -137,7 +139,10 @@ export async function POST(request: Request) {
     } finally {
       clearTimeout(timeout);
     }
-    if (!res.ok) throw new Error('Groq request failed');
+    if (!res.ok) {
+      console.error('[ai-coach] Groq request failed:', res.status);
+      throw new Error('Groq request failed');
+    }
     const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
     const advice = json?.choices?.[0]?.message?.content?.trim();
     if (!advice) throw new Error('Empty Groq response');
