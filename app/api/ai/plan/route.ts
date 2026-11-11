@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 
 // مدرب الدراسة — بيبعت ملخص حقيقي من بيانات المستخدم لـ Google Gemini مباشرة وبيرجع نصيحة.
-// Gemini API من Google AI Studio — مجاني (Free tier)، والموديل الافتراضي gemini-2.5-flash.
+// Gemini API من Google AI Studio — مجاني (Free tier)، والموديل الافتراضي gemini-3.8-flash.
 // مفتاح Gemini من process.env بس (server-side) — عمره ما بيطلع للعميل ولا بيتسجل في أي لوج.
 // لو مفيش مفتاح أو النداء فشل لأي سبب، بيرجع نصيحة جاهزة من البيانات نفسها، مش خطأ 500.
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
-// الموديل الافتراضي gemini-2.5-flash (مجاني على Google AI Studio) — يتغير من Vercel بمتغير GEMINI_MODEL من غير تعديل كود.
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+// الموديل الافتراضي gemini-3.8-flash (مجاني على Google AI Studio) — يتغير من Vercel بمتغير GEMINI_MODEL من غير تعديل كود.
+// ملاحظة: gemini-2.5-flash اتقفل للمستخدمين الجدد (بيرجع 404)، وجوجل نفسها بتنصح بـ gemini-3.8-flash.
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 
 type PlanSummary = { subject: string; dailyTarget?: number; weeklyTarget?: number; weekHours?: number };
 type SessionSummary = { subject: string; hours: number; date: string; type: string };
