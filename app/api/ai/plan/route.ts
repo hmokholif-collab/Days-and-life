@@ -120,7 +120,8 @@ export async function POST(request: Request) {
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000);
+    // مهلة 45 ثانية: موديلات OpenRouter المجانية بتتخدم بأولوية منخفضة وبتقف في طابور، فـ 20 ثانية كانت قليلة والنداء كان بيتقطع قبل ما يرد (AbortError).
+    const timeout = setTimeout(() => controller.abort(), 45000);
     let res: Response;
     try {
       res = await fetch(OPENROUTER_API_URL, {
