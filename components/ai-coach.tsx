@@ -11,8 +11,8 @@ export function AiCoach() {
   const { t, locale } = useLanguage();
   const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [advice, setAdvice] = useState('');
-  const [source, setSource] = useState<'grok' | 'built-in'>('built-in');
-  const [reason, setReason] = useState<'no-key' | 'grok-error' | undefined>(undefined);
+  const [source, setSource] = useState<'openrouter' | 'built-in'>('built-in');
+  const [reason, setReason] = useState<'no-key' | 'openrouter-error' | undefined>(undefined);
 
   const realSessions = loadSessions().filter((s) => !isDemoSession(s));
   // الأرقام اللي بتتبعت للمدرب من الجلسات الحقيقية بس — الديمو كانت بتتحسب قبل كده
@@ -57,11 +57,11 @@ export function AiCoach() {
         }),
       });
       if (!res.ok) throw new Error('coach request failed');
-      const data = (await res.json()) as { advice?: string; source?: 'grok' | 'built-in'; reason?: 'no-key' | 'grok-error' };
+      const data = (await res.json()) as { advice?: string; source?: 'openrouter' | 'built-in'; reason?: 'no-key' | 'openrouter-error' };
       if (!data.advice) throw new Error('empty advice');
       setAdvice(data.advice);
-      setSource(data.source === 'grok' ? 'grok' : 'built-in');
-      setReason(data.source === 'grok' ? undefined : data.reason);
+      setSource(data.source === 'openrouter' ? 'openrouter' : 'built-in');
+      setReason(data.source === 'openrouter' ? undefined : data.reason);
       setStatus('done');
     } catch {
       setStatus('error');
@@ -87,15 +87,15 @@ export function AiCoach() {
       {status === 'done' && (
         <div className="mt-4">
           <div className="flex items-center gap-2">
-            <span className={`rounded-full px-2 py-1 text-[11px] font-bold ${source === 'grok' ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
-              {source === 'grok' ? t('coach.grokBadge') : t('coach.builtinBadge')}
+            <span className={`rounded-full px-2 py-1 text-[11px] font-bold ${source === 'openrouter' ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
+              {source === 'openrouter' ? t('coach.openrouterBadge') : t('coach.builtinBadge')}
             </span>
           </div>
           <p className="mt-3 whitespace-pre-line leading-relaxed text-slate-700 dark:text-slate-200">{advice}</p>
-          {source === 'built-in' && reason === 'grok-error' && (
-            <p className="mt-3 rounded-2xl bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-700 dark:bg-amber-950/50 dark:text-amber-300">{t('coach.grokErrorNote')}</p>
+          {source === 'built-in' && reason === 'openrouter-error' && (
+            <p className="mt-3 rounded-2xl bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-700 dark:bg-amber-950/50 dark:text-amber-300">{t('coach.openrouterErrorNote')}</p>
           )}
-          {source === 'built-in' && reason !== 'grok-error' && (
+          {source === 'built-in' && reason !== 'openrouter-error' && (
             <p className="mt-3 rounded-2xl bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-700 dark:bg-amber-950/50 dark:text-amber-300">{t('coach.builtinNote')}</p>
           )}
         </div>

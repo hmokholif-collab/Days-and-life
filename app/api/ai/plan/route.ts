@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 
-// مدرب الدراسة — بيبعت ملخص حقيقي من بيانات المستخدم لـ Grok (عبر grok-api.com) وبيرجع نصيحة.
-// grok-api.com بروكسي خارجي لموديلات Grok بتاعة xAI، متوافق 100% مع OpenAI API.
-// مفتاح Grok من process.env بس (server-side) — عمره ما بيطلع للعميل ولا بيتسجل في أي لوج.
+// مدرب الدراسة — بيبعت ملخص حقيقي من بيانات المستخدم لـ OpenRouter وبيرجع نصيحة.
+// OpenRouter بوابة موديلات متوافقة مع OpenAI API — الموديل الافتراضي مجاني.
+// مفتاح OpenRouter من process.env بس (server-side) — عمره ما بيطلع للعميل ولا بيتسجل في أي لوج.
 // لو مفيش مفتاح أو النداء فشل لأي سبب، بيرجع نصيحة جاهزة من البيانات نفسها، مش خطأ 500.
 
-const GROK_API_URL = 'https://api.grok-api.com/v1/chat/completions';
-// الموديل الافتراضي grok-4.3 (فئة القيمة الحالية عند xAI) — يتغير من Vercel بمتغير GROK_MODEL من غير تعديل كود.
-const GROK_MODEL = process.env.GROK_MODEL || 'grok-4.3';
+const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+// الموديل الافتراضي google/gemma-4-31b-it:free (مجاني على OpenRouter) — يتغير من Vercel بمتغير OPENROUTER_MODEL من غير تعديل كود.
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'google/gemma-4-31b-it:free';
 
 type PlanSummary = { subject: string; dailyTarget?: number; weeklyTarget?: number; weekHours?: number };
 type SessionSummary = { subject: string; hours: number; date: string; type: string };
@@ -83,13 +83,13 @@ function builtinAdvice(d: CoachInput): string {
   return advice;
 }
 
-function grokSystemPrompt(locale: 'ar' | 'en'): string {
+function openrouterSystemPrompt(locale: 'ar' | 'en'): string {
   return locale === 'en'
     ? 'You are a friendly, practical study coach inside a study-tracking app. Reply in English. Give 2-3 short, practical suggestions based only on the numbers given. Keep the whole reply under 80 words. Be encouraging and concrete, no generic fluff, no markdown headings.'
     : 'أنت مدرب مذاكرة ودود وعملي داخل تطبيق لتتبع المذاكرة. رد بالعربية (مصري مبسط). أعطِ 2-3 اقتراحات قصيرة وعملية مبنية على الأرقام المعطاة فقط. اجعل الرد كله أقل من 80 كلمة. كن مشجعًا ومحددًا، بدون كلام عام، وبدون عناوين ماركداون.';
 }
 
-function grokUserPrompt(d: CoachInput): string {
+function openrouterUserPrompt(d: CoachInput): string {
   const plansLine = d.plans.length === 0
     ? (d.locale === 'en' ? 'No weekly plans set.' : 'لا توجد خطط أسبوعية.')
     : d.plans.map((p) => {
@@ -114,7 +114,7 @@ export async function POST(request: Request) {
   const data = parseInput(body);
   const fallback = builtinAdvice(data);
 
-  const apiKey = process.env.GROK_API_KEY;
+  const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return NextResponse.json({ advice: fallback, source: 'built-in' as const, reason: 'no-key' as const });
 
   try {
@@ -122,14 +122,19 @@ export async function POST(request: Request) {
     const timeout = setTimeout(() => controller.abort(), 20000);
     let res: Response;
     try {
-      res = await fetch(GROK_API_URL, {
+      res = await fetch(OPENROUTER_API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+          'HTTP-Referer': 'https://days-and-life.vercel.app',
+          'X-Title': 'Days and Life',
+        },
         body: JSON.stringify({
-          model: GROK_MODEL,
+          model: OPENROUTER_MODEL,
           messages: [
-            { role: 'system', content: grokSystemPrompt(data.locale) },
-            { role: 'user', content: grokUserPrompt(data) },
+            { role: 'system', content: openrouterSystemPrompt(data.locale) },
+            { role: 'user', content: openrouterUserPrompt(data) },
           ],
           temperature: 0.7,
           max_tokens: 400,
@@ -140,16 +145,16 @@ export async function POST(request: Request) {
       clearTimeout(timeout);
     }
     if (!res.ok) {
-      console.error('[ai-coach] Grok request failed:', res.status);
-      throw new Error('Grok request failed');
+      console.error('[ai-coach] OpenRouter request failed:', res.status);
+      throw new Error('OpenRouter request failed');
     }
     const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
     const advice = json?.choices?.[0]?.message?.content?.trim();
-    if (!advice) throw new Error('Empty Grok response');
-    return NextResponse.json({ advice, source: 'grok' as const });
+    if (!advice) throw new Error('Empty OpenRouter response');
+    return NextResponse.json({ advice, source: 'openrouter' as const });
   } catch {
-    // أي فشل في Grok (نت، مفتاح غلط، موديل مش موجود، مهلة) → النصيحة الجاهزة، مش خطأ للمستخدم.
-    // السبب بيرجع للواجهة عشان الملاحظة تبقى صادقة: المفتاح موجود بس Grok مردّش.
-    return NextResponse.json({ advice: fallback, source: 'built-in' as const, reason: 'grok-error' as const });
+    // أي فشل في OpenRouter (نت، مفتاح غلط، موديل مش موجود، مهلة) → النصيحة الجاهزة، مش خطأ للمستخدم.
+    // السبب بيرجع للواجهة عشان الملاحظة تبقى صادقة: المفتاح موجود بس OpenRouter مردّش.
+    return NextResponse.json({ advice: fallback, source: 'built-in' as const, reason: 'openrouter-error' as const });
   }
 }
