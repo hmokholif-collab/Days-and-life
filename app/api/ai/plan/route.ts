@@ -6,9 +6,9 @@ import { NextResponse } from 'next/server';
 // لو مفيش مفتاح أو النداء فشل لأي سبب، بيرجع نصيحة جاهزة من البيانات نفسها، مش خطأ 500.
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-// الموديل الافتراضي nvidia/nemotron-3.5-lightning:free (مجاني على OpenRouter) — يتغير من Vercel بمتغير OPENROUTER_MODEL من غير تعديل كود.
-// ملاحظة: google/gemma-4-31b-it:free كان الافتراضي الأول، لكن مزوّد Google بيرجع 429 (زحمة) حتى من أول طلب — فتم التبديل لنموذج مجاني تاني.
-const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'nvidia/nemotron-3.5-lightning:free';
+// الموديل الافتراضي liquid/lfm-2.5-2.6b:free (مجاني على OpenRouter، موديل صغير سريع من مزوّد تاني) — يتغير من Vercel بمتغير OPENROUTER_MODEL من غير تعديل كود.
+// ملاحظة: google/gemma-4-31b-it:free بيرجع 429 من مزوّد Google، وnvidia/nemotron-3.5-lightning:free بيقف في الطابور أكتر من 45 ثانية — فتم التبديل لموديل مجاني تالت أصغر وأسرع.
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'liquid/lfm-2.5-2.6b:free';
 
 type PlanSummary = { subject: string; dailyTarget?: number; weeklyTarget?: number; weekHours?: number };
 type SessionSummary = { subject: string; hours: number; date: string; type: string };
