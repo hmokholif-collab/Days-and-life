@@ -147,15 +147,18 @@ export async function POST(request: Request) {
     }
     if (!res.ok) {
       console.error('[ai-coach] OpenRouter request failed:', res.status);
+      const errText = await res.text().catch(() => '');
+      console.error('[ai-coach] OpenRouter error body:', errText.slice(0, 500));
       throw new Error('OpenRouter request failed');
     }
     const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
     const advice = json?.choices?.[0]?.message?.content?.trim();
     if (!advice) throw new Error('Empty OpenRouter response');
     return NextResponse.json({ advice, source: 'openrouter' as const });
-  } catch {
+  } catch (err) {
     // أي فشل في OpenRouter (نت، مفتاح غلط، موديل مش موجود، مهلة) → النصيحة الجاهزة، مش خطأ للمستخدم.
     // السبب بيرجع للواجهة عشان الملاحظة تبقى صادقة: المفتاح موجود بس OpenRouter مردّش.
+    console.error('[ai-coach] OpenRouter request failed (exception):', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ advice: fallback, source: 'built-in' as const, reason: 'openrouter-error' as const });
   }
 }
