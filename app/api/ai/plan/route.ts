@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server';
 
-// مدرب الدراسة — بيبعت ملخص حقيقي من بيانات المستخدم لـ OpenRouter وبيرجع نصيحة.
-// OpenRouter بوابة موديلات متوافقة مع OpenAI API — الموديل الافتراضي مجاني.
-// مفتاح OpenRouter من process.env بس (server-side) — عمره ما بيطلع للعميل ولا بيتسجل في أي لوج.
+// مدرب الدراسة — بيبعت ملخص حقيقي من بيانات المستخدم لـ Google Gemini مباشرة وبيرجع نصيحة.
+// Gemini API من Google AI Studio — مجاني (Free tier)، والموديل الافتراضي gemini-2.5-flash.
+// مفتاح Gemini من process.env بس (server-side) — عمره ما بيطلع للعميل ولا بيتسجل في أي لوج.
 // لو مفيش مفتاح أو النداء فشل لأي سبب، بيرجع نصيحة جاهزة من البيانات نفسها، مش خطأ 500.
 
-const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-// الموديل الافتراضي liquid/lfm-2.5-2.6b:free (مجاني على OpenRouter، موديل صغير سريع من مزوّد تاني) — يتغير من Vercel بمتغير OPENROUTER_MODEL من غير تعديل كود.
-// ملاحظة: google/gemma-4-31b-it:free بيرجع 429 من مزوّد Google، وnvidia/nemotron-3.5-lightning:free بيقف في الطابور أكتر من 45 ثانية — فتم التبديل لموديل مجاني تالت أصغر وأسرع.
-const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'liquid/lfm-2.5-2.6b:free';
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+// الموديل الافتراضي gemini-2.5-flash (مجاني على Google AI Studio) — يتغير من Vercel بمتغير GEMINI_MODEL من غير تعديل كود.
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
 type PlanSummary = { subject: string; dailyTarget?: number; weeklyTarget?: number; weekHours?: number };
 type SessionSummary = { subject: string; hours: number; date: string; type: string };
@@ -84,13 +83,13 @@ function builtinAdvice(d: CoachInput): string {
   return advice;
 }
 
-function openrouterSystemPrompt(locale: 'ar' | 'en'): string {
+function geminiSystemPrompt(locale: 'ar' | 'en'): string {
   return locale === 'en'
     ? 'You are a friendly, practical study coach inside a study-tracking app. Reply in English. Give 2-3 short, practical suggestions based only on the numbers given. Keep the whole reply under 80 words. Be encouraging and concrete, no generic fluff, no markdown headings.'
     : 'أنت مدرب مذاكرة ودود وعملي داخل تطبيق لتتبع المذاكرة. رد بالعربية (مصري مبسط). أعطِ 2-3 اقتراحات قصيرة وعملية مبنية على الأرقام المعطاة فقط. اجعل الرد كله أقل من 80 كلمة. كن مشجعًا ومحددًا، بدون كلام عام، وبدون عناوين ماركداون.';
 }
 
-function openrouterUserPrompt(d: CoachInput): string {
+function geminiUserPrompt(d: CoachInput): string {
   const plansLine = d.plans.length === 0
     ? (d.locale === 'en' ? 'No weekly plans set.' : 'لا توجد خطط أسبوعية.')
     : d.plans.map((p) => {
@@ -115,31 +114,24 @@ export async function POST(request: Request) {
   const data = parseInput(body);
   const fallback = builtinAdvice(data);
 
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return NextResponse.json({ advice: fallback, source: 'built-in' as const, reason: 'no-key' as const });
 
   try {
     const controller = new AbortController();
-    // مهلة 45 ثانية: موديلات OpenRouter المجانية بتتخدم بأولوية منخفضة وبتقف في طابور، فـ 20 ثانية كانت قليلة والنداء كان بيتقطع قبل ما يرد (AbortError).
     const timeout = setTimeout(() => controller.abort(), 45000);
     let res: Response;
     try {
-      res = await fetch(OPENROUTER_API_URL, {
+      res = await fetch(`${GEMINI_API_URL}/${encodeURIComponent(GEMINI_MODEL)}:generateContent`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-          'HTTP-Referer': 'https://days-and-life.vercel.app',
-          'X-Title': 'Days and Life',
+          'x-goog-api-key': apiKey,
         },
         body: JSON.stringify({
-          model: OPENROUTER_MODEL,
-          messages: [
-            { role: 'system', content: openrouterSystemPrompt(data.locale) },
-            { role: 'user', content: openrouterUserPrompt(data) },
-          ],
-          temperature: 0.7,
-          max_tokens: 400,
+          systemInstruction: { parts: [{ text: geminiSystemPrompt(data.locale) }] },
+          contents: [{ parts: [{ text: geminiUserPrompt(data) }] }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 400 },
         }),
         signal: controller.signal,
       });
@@ -147,19 +139,19 @@ export async function POST(request: Request) {
       clearTimeout(timeout);
     }
     if (!res.ok) {
-      console.error('[ai-coach] OpenRouter request failed:', res.status);
+      console.error('[ai-coach] Gemini request failed:', res.status);
       const errText = await res.text().catch(() => '');
-      console.error('[ai-coach] OpenRouter error body:', errText.slice(0, 500));
-      throw new Error('OpenRouter request failed');
+      console.error('[ai-coach] Gemini error body:', errText.slice(0, 500));
+      throw new Error('Gemini request failed');
     }
-    const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-    const advice = json?.choices?.[0]?.message?.content?.trim();
-    if (!advice) throw new Error('Empty OpenRouter response');
-    return NextResponse.json({ advice, source: 'openrouter' as const });
+    const json = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+    const advice = json?.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('').trim();
+    if (!advice) throw new Error('Empty Gemini response');
+    return NextResponse.json({ advice, source: 'gemini' as const });
   } catch (err) {
-    // أي فشل في OpenRouter (نت، مفتاح غلط، موديل مش موجود، مهلة) → النصيحة الجاهزة، مش خطأ للمستخدم.
-    // السبب بيرجع للواجهة عشان الملاحظة تبقى صادقة: المفتاح موجود بس OpenRouter مردّش.
-    console.error('[ai-coach] OpenRouter request failed (exception):', err instanceof Error ? err.message : String(err));
-    return NextResponse.json({ advice: fallback, source: 'built-in' as const, reason: 'openrouter-error' as const });
+    // أي فشل في Gemini (نت، مفتاح غلط، موديل مش موجود، مهلة) → النصيحة الجاهزة، مش خطأ للمستخدم.
+    // السبب بيرجع للواجهة عشان الملاحظة تبقى صادقة: المفتاح موجود بس Gemini مردّش.
+    console.error('[ai-coach] Gemini request failed (exception):', err instanceof Error ? err.message : String(err));
+    return NextResponse.json({ advice: fallback, source: 'built-in' as const, reason: 'gemini-error' as const });
   }
 }
